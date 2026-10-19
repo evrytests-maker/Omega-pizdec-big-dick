@@ -20,12 +20,12 @@ const STRINGS = {
         submitConfirm: (nick, omega, base) => `Send to the leaderboard?\n\nNickname: ${nick}\nOmega-pizdec: ${omega}\nBase: ${base}\n\nOnly the volumes and nickname are sent, encrypted.`,
         submitted: (rank) => `Submitted. You are #${rank}.`,
         noBoard: 'Set the leaderboard URL in settings first.',
-        apiFail: 'Model failed, using offline estimate',
+        apiFail: 'Model failed: this message was not counted',
+        noProfile: 'Cumometer: pick a model profile in the extension settings to start measuring.',
         // settings
         sDisplay: 'Display',
         sEnabled: 'Enabled',
         sPill: 'Show counter',
-        sComments: 'Show OOC remarks',
         sLang: 'Language',
         sTheme: 'Appearance',
         sMeasure: 'Measurement',
@@ -34,8 +34,8 @@ const STRINGS = {
         sBoardHint: 'Only your jar volume and nickname are sent, sealed so only the leaderboard server can read them. A one-way fingerprint of your local key keeps the nickname yours; the key never leaves this browser.',
         nickTaken: 'This nickname is taken. Pick another one.',
         sProfile: 'Profile',
-        sProfileNone: 'None — regex only',
-        sProfileHint: 'Pick a Connection Manager profile with a small, cheap model (plug icon → Connection Profile → create). Requests go through SillyTavern, so the API key stays in its server-side secret storage. Without a profile the counter uses regex and a rough offline estimate.',
+        sProfileNone: 'None — not measuring',
+        sProfileHint: 'Pick a Connection Manager profile with a small, cheap model (plug icon → Connection Profile → create). Requests go through SillyTavern, so the API key stays in its server-side secret storage. Without a profile nothing is measured.',
         sCmOff: 'Enable the built-in Connection Manager extension to use a model.',
         sGlass: 'Liquid Glass',
         sJar: 'Jar size',
@@ -74,11 +74,11 @@ const STRINGS = {
         submitConfirm: (nick, omega, base) => `Отправить в лидерборд?\n\nНик: ${nick}\nOmega-pizdec: ${omega}\nBase: ${base}\n\nОтправляются только объёмы и ник, в зашифрованном виде.`,
         submitted: (rank) => `Готово. Вы на #${rank} месте.`,
         noBoard: 'Сначала укажите адрес лидерборда в настройках.',
-        apiFail: 'Модель не ответила, считаю офлайн',
+        apiFail: 'Модель не ответила: сообщение не засчитано',
+        noProfile: 'Cumometer: выберите профиль модели в настройках расширения, чтобы начать подсчёт.',
         sDisplay: 'Отображение',
         sEnabled: 'Включено',
         sPill: 'Показывать счётчик',
-        sComments: 'Показывать OOC-комментарии',
         sLang: 'Язык',
         sTheme: 'Тема',
         sMeasure: 'Подсчёт',
@@ -87,8 +87,8 @@ const STRINGS = {
         sBoardHint: 'Отправляются только объём банки и ник — в зашифрованном виде, прочитать может только сервер лидерборда. Чтобы ник никто не занял, к ним приложен односторонний отпечаток вашего локального ключа; сам ключ из браузера не уходит.',
         nickTaken: 'Этот ник уже занят. Выберите другой.',
         sProfile: 'Профиль',
-        sProfileNone: 'Нет — только регексы',
-        sProfileHint: 'Выберите профиль Connection Manager с маленькой дешёвой моделью (значок вилки → Connection Profile → создать). Запросы идут через SillyTavern, поэтому API-ключ остаётся в его серверном хранилище секретов. Без профиля счётчик работает на регексах и грубой офлайн-оценке.',
+        sProfileNone: 'Нет — не считать',
+        sProfileHint: 'Выберите профиль Connection Manager с маленькой дешёвой моделью (значок вилки → Connection Profile → создать). Запросы идут через SillyTavern, поэтому API-ключ остаётся в его серверном хранилище секретов. Без профиля ничего не считается.',
         sCmOff: 'Включите встроенное расширение Connection Manager, чтобы использовать модель.',
         sGlass: 'Liquid Glass',
         sJar: 'Объём банки',
@@ -130,23 +130,6 @@ export const ACHIEVEMENTS = [
     { ml: 150000, en: 'Full bathtub', ru: 'Полная ванна' },
     { ml: 30000000, en: 'Tanker', ru: 'Бензовоз' },
 ];
-
-export const QUIPS = {
-    en: [
-        'Logged. The lab requests a mop.',
-        'Measurement recorded. Hydration advised.',
-        'Sample volume noted. No further questions.',
-        'The graduated cylinder has seen things.',
-        'Entered into the ledger with a straight face.',
-    ],
-    ru: [
-        'Записано. Лаборатория просит швабру.',
-        'Замер внесён. Рекомендуется пить воду.',
-        'Объём зафиксирован. Вопросов нет.',
-        'Мерный стакан повидал многое.',
-        'Внесено в журнал с каменным лицом.',
-    ],
-};
 
 export function resolveLang(setting) {
     if (setting === 'en' || setting === 'ru') return setting;

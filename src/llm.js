@@ -36,8 +36,6 @@ function parse(text) {
         count: happened ? Math.max(1, parseInt(j.count, 10) || 1) : 0,
         ml: happened ? Math.min(omega, 1e9) : 0,
         base: happened ? Math.min(base, omega, 1e9) : 0,
-        omegaverse: j.omegaverse === true || j.omegaverse === 'true',
-        comment: happened ? String(j.comment ?? '').slice(0, 160) : '',
     };
 }
 

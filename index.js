@@ -1,7 +1,7 @@
-import { triggers, looksOmegaverse, heuristicMl, heuristicBase } from './src/detect.js';
+import { triggers } from './src/detect.js';
 import { measure, ping, listProfiles } from './src/llm.js';
 import { buildMessages } from './src/prompt.js';
-import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS, QUIPS } from './src/i18n.js';
+import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS } from './src/i18n.js';
 import { Jar, JAR_SVG, MINI_JAR_SVG, split } from './src/jar.js';
 import { submit as submitSealed, boardUrl } from './src/board.js';
 
@@ -13,7 +13,6 @@ const LS_USER_KEY = 'cumometer.userKey';
 const DEFAULTS = {
     enabled: true,
     showPill: true,
-    showComments: true,
     lang: 'auto',
     theme: 'auto',
     liquidGlass: true,
@@ -88,12 +87,6 @@ function resolveChar(msg) {
     return { key: ch?.avatar || name, name, data: ch };
 }
 
-function cardText(ch) {
-    if (!ch) return '';
-    const parts = [ch.description, ch.personality, ch.scenario, ch.data?.creator_notes, (ch.tags || ch.data?.tags || []).join(', ')];
-    return parts.filter(Boolean).join('\n').slice(0, 2500);
-}
-
 // ───────────────────────── accounting ─────────────────────────
 
 function compute() {
@@ -144,7 +137,12 @@ function pruneEntries(meta) {
 let queue = Promise.resolve();
 const enqueue = (fn) => (queue = queue.then(fn).catch((e) => console.error('[Cumometer]', e)));
 
-let apiWarned = false;
+const warned = new Set();
+function warnOnce(key, message, title) {
+    if (warned.has(key)) return;
+    warned.add(key);
+    toastr.warning(message, title);
+}
 
 async function processIndex(i, { force = false } = {}) {
     const s = settings();
@@ -163,47 +161,36 @@ async function processIndex(i, { force = false } = {}) {
         return;
     }
 
-    const chatId = c.getCurrentChatId?.();
-    const lang = resolveLang(s.lang);
-    const ch = resolveChar(msg);
-    const card = cardText(ch.data);
-    const history = c.chat.slice(Math.max(0, i - 4), i)
-        .map((m) => `${m.name}: ${String(m.mes).slice(0, 600)}`).join('\n\n');
-    const omegaHint = looksOmegaverse(card + '\n' + history + '\n' + text);
-
-    let res = null;
-    if (s.profileId) {
-        try {
-            const chid = ch.data ? c.characters.indexOf(ch.data) : undefined;
-            const messages = await buildMessages({ index: i, chid: chid >= 0 ? chid : undefined, charName: ch.name, totalMl: compute().total, omegaHint, lang });
-            res = await measure(s.profileId, messages);
-        } catch (e) {
-            console.warn('[Cumometer] OOC model failed:', e);
-            if (!apiWarned) {
-                apiWarned = true;
-                toastr.warning(String(e.message || e).slice(0, 140), strings(lang).apiFail);
-            }
-        }
+    // No model, no measurement: there is no offline guess.
+    if (!s.profileId) {
+        warnOnce('noProfile', strings(resolveLang(s.lang)).noProfile);
+        return;
     }
-    if (!res) {
-        const pool = QUIPS[lang];
-        res = {
-            happened: true,
-            base: heuristicBase(text),
-            ml: heuristicMl(text, { omega: omegaHint }),
-            comment: pool[Math.floor(Math.random() * pool.length)],
-        };
+
+    const chatId = c.getCurrentChatId?.();
+    const ch = resolveChar(msg);
+    let res;
+    try {
+        const chid = ch.data ? c.characters.indexOf(ch.data) : undefined;
+        const { total, base, episodes } = compute();
+        const messages = await buildMessages({ index: i, chid: chid >= 0 ? chid : undefined, charName: ch.name, sofar: { omega: total, base, episodes } });
+        res = await measure(s.profileId, messages);
+    } catch (e) {
+        // Leave the message unmeasured so Recount can retry it later.
+        console.warn('[Cumometer] model failed:', e);
+        warnOnce('apiFail', String(e.message || e).slice(0, 140), strings(resolveLang(s.lang)).apiFail);
+        return;
     }
 
     // The chat may have been switched while we were waiting on the model.
     if (ctx().getCurrentChatId?.() !== chatId) return;
 
     chatMeta().entries[h] = res.happened
-        ? { ml: Math.round(res.ml * 10) / 10, base: Math.round(res.base * 10) / 10, note: res.comment, char: ch.key, ts: Date.now() }
+        ? { ml: Math.round(res.ml * 10) / 10, base: Math.round(res.base * 10) / 10, char: ch.key, ts: Date.now() }
         : { ml: 0, base: 0, char: ch.key };
     await ctx().saveMetadata();
     refresh();
-    if (res.happened && !force) announce(res.ml, res.comment, res.base);
+    if (res.happened && !force) announce(res.ml, res.base);
 }
 
 async function recountChat() {
@@ -298,7 +285,6 @@ function buildPill() {
         </button>
         <div class="cm-toast" role="status" aria-live="polite">
             <div class="cm-toast-delta"></div>
-            <div class="cm-toast-note"></div>
         </div>
         <div class="cm-card" hidden>
             <div class="cm-top">
@@ -416,8 +402,8 @@ function refresh() {
         : prev?.[lang] || '';
 
     const lastEl = root.querySelector('.cm-last');
-    lastEl.hidden = !(stats.last && s.showComments && stats.last.note);
-    if (stats.last) lastEl.innerHTML = `<span class="cm-last-delta">+${fmtStr(stats.last.ml, L)}</span> ${escapeHtml(stats.last.note || '')}`;
+    lastEl.hidden = !stats.last;
+    if (stats.last) lastEl.innerHTML = `${L.last}: <span class="cm-last-delta">+${fmtStr(stats.last.ml, L)}</span> · ${L.baseShort} ${fmtStr(stats.last.base || 0, L)}`;
 
     checkAchievements(stats.total, lang);
 }
@@ -434,7 +420,7 @@ function checkAchievements(total, lang) {
     ctx().saveMetadata();
 }
 
-function announce(ml, comment, base = 0) {
+function announce(ml, base = 0) {
     const s = settings();
     if (!root || !s.showPill || root.classList.contains('cm-open')) return;
     const L = strings(resolveLang(s.lang));
@@ -443,9 +429,6 @@ function announce(ml, comment, base = 0) {
     const filled = Math.floor(total / capacity);
     const overflowed = filled > Math.floor((total - ml) / capacity);
     root.querySelector('.cm-toast-delta').textContent = `+${fmtStr(ml, L)}${overflowed ? ` · ${L.jarFull(filled)}` : ''} · ${L.baseShort} ${fmtStr(base, L)}`;
-    const note = root.querySelector('.cm-toast-note');
-    note.textContent = s.showComments ? comment || '' : '';
-    note.hidden = !note.textContent;
     root.classList.add('cm-toasting');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(hideToast, 6500);
@@ -535,7 +518,6 @@ function renderSettings() {
 
                 ${group(L.sDisplay, `
                     ${toggle('showPill', L.sPill)}
-                    ${toggle('showComments', L.sComments)}
                     ${toggle('liquidGlass', L.sGlass)}
                     ${seg('theme', L.sTheme, [['auto', L.auto], ['light', L.light], ['dark', L.dark]])}
                     ${seg('lang', L.sLang, [['auto', L.auto], ['en', 'EN'], ['ru', 'RU']])}

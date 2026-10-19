@@ -132,7 +132,7 @@ check('measurement request goes last, measured message right before it', last?.r
 check('total = 1840 ml', Math.abs((await total()) - 1840) < 0.01, String(await total()));
 await page.waitForTimeout(600);
 check('pill shows 1.84 L', /1\.84\s*L/.test(await pillText()), await pillText());
-check('toast with OOC remark shown', await page.evaluate(() => document.getElementById('cm-root').classList.contains('cm-toasting')) && /buckets/.test(await page.textContent('.cm-toast-note')));
+check('toast shows both scales', await page.evaluate(() => document.getElementById('cm-root').classList.contains('cm-toasting')) && /^\+1\.84 L · base 7\.5 ml/.test(await page.textContent('.cm-toast-delta')), await page.textContent('.cm-toast-delta'));
 await page.screenshot({ path: SP + '/st-toast.png' });
 
 // 2. Innocent message → no OOC call, total unchanged.
@@ -197,13 +197,18 @@ await page.waitForTimeout(2000);
 check('total persists after page reload', /1\.84\s*L/.test(await pillText()), await pillText());
 await connect();
 
-// 7. Offline fallback when the endpoint is down.
-await page.evaluate(() => { SillyTavern.getContext().extensionSettings.cumometer.profileId = 'cm-dead'; });
+// 7. Model down → the message is NOT counted (no offline guess), and the user is told.
+await page.evaluate(() => {
+  SillyTavern.getContext().extensionSettings.cumometer.profileId = 'cm-dead';
+  window.__warnings = [];
+  const orig = toastr.warning.bind(toastr);
+  toastr.warning = (...a) => { window.__warnings.push(a.join(' | ')); return orig(...a); };
+});
 const before = await total();
-await send('*Again.*');  // mock returns the tea line next → maybe no trigger; send until a trigger
-let tries = 0;
-while ((await total()) === before && tries++ < 3) await send('*Again.*');
-check('endpoint down → heuristic estimate still counts', (await total()) > before, `${before} → ${await total()}`);
+await send('*Again.*');
+check('model down → message not counted (no offline estimate)', (await total()) === before, `${before} → ${await total()}`);
+const warnings = await page.evaluate(() => window.__warnings);
+check('model down → warning shown', warnings.some((w) => /not counted|не засчитано/.test(w)), warnings.join(' / '));
 await page.evaluate(() => { SillyTavern.getContext().extensionSettings.cumometer.profileId = 'cm-ooc'; });
 
 // 7b. A reply identical to an already-measured one counts again.

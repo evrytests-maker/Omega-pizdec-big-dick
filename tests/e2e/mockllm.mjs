@@ -26,12 +26,12 @@ http.createServer((req, res) => {
       if (/once more, groaning/.test(all)) {
         // First answer is chatter; only the corrective retry gets proper JSON.
         content = /not a valid answer/.test(all)
-          ? '{"happened": true, "count": 1, "base": 4, "omega-pizdec": 7, "omegaverse": false, "comment": "Retry accepted."}'
+          ? '{"happened": true, "count": 1, "base": 4, "omega-pizdec": 7}'
           : 'Sure thing! He definitely finished there, I would say a moderate amount.';
       } else
       content = omega
-        ? '{"happened": true, "count": 1, "base": 7.5, "omega-pizdec": 1840, "omegaverse": true, "comment": "Knot-sealed. The lab has upgraded from beakers to buckets."}'
-        : '{"happened": false, "count": 0, "base": 0, "omega-pizdec": 0, "omegaverse": false, "comment": ""}';
+        ? '{"happened": true, "count": 1, "base": 7.5, "omega-pizdec": 1840}'
+        : '{"happened": false, "count": 0, "base": 0, "omega-pizdec": 0}';
     } else {
       const lastUser = [...(j.messages || [])].reverse().find((m) => m.role === 'user')?.content || '';
       content = /ping/.test(lastUser) ? 'ok'

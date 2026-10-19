@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { TRIGGER_SOURCES, word, triggers, looksOmegaverse } from '../src/detect.js';
+import { TRIGGER_SOURCES, word, triggers } from '../src/detect.js';
 
 const contracts = JSON.parse(readFileSync(new URL('./trigger-contracts.json', import.meta.url), 'utf8'));
 
@@ -44,11 +44,4 @@ test('patterns finish quickly on long hostile input', () => {
     const t0 = performance.now();
     triggers(hostile);
     assert.ok(performance.now() - t0 < 500);
-});
-
-test('omegaverse detection', () => {
-    assert.equal(looksOmegaverse('An alpha in rut, the omega in heat.'), true);
-    assert.equal(looksOmegaverse('Омегаверс AU'), true);
-    assert.equal(looksOmegaverse('A knight guards the castle.'), false);
-    assert.equal(looksOmegaverse('He is stuck in a rut at work.'), false);
 });

@@ -7,11 +7,11 @@ A SillyTavern extension that measures, with a straight face, how many litres a c
 ## How it works / Как работает
 
 1. **Regex trigger.** Every AI message is scanned with RU/EN patterns (`src/detect.js`). No match means no request.
-2. **OOC model.** On a match, a separate small model receives the character card, the last few messages and the running total. It decides whether it actually happened and estimates the volume. It also writes a dry one-line OOC remark.
+2. **Model.** On a match, a separate small model receives the character card, persona, lorebooks and the last four messages. It decides whether it actually happened and measures the volume on two scales: **base** (realistic) and **omega-pizdec** (by the lore).
    - Human baseline is 2–6 ml.
    - The model adapts to the lore. In **omegaverse** (detected from the card and the scene), alphas in rut and knotting produce absurd volumes.
    - The prompt is tuned slightly absurd: exaggeration is allowed only when the text hints at excess.
-3. **Offline fallback.** With no model configured, or if the call fails, a heuristic estimate is used.
+3. **No guessing.** Without a model profile nothing is measured; if the model fails, the message is left uncounted (Recount retries it).
 4. Results are stored per chat in chat metadata, keyed by message text. Swipes, edits and deletions are handled automatically.
 
 ## Regex triggers / Регексы
@@ -28,8 +28,8 @@ node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (
 
 ### End-to-end in real SillyTavern
 
-`tests/e2e/` drives a real SillyTavern build with Playwright (50 checks: install, settings UI, regex → OOC call,
-omegaverse context, swipes/deletes, reload persistence, offline fallback, sealed leaderboard submit, Liquid Glass on/off, jar overflow).
+`tests/e2e/` drives a real SillyTavern build with Playwright (51 checks: install, settings UI, regex → OOC call,
+omegaverse context, swipes/deletes, reload persistence, model-down handling, sealed leaderboard submit, Liquid Glass on/off, jar overflow).
 
 ```bash
 node tests/e2e/mockllm.mjs /tmp/llm.log &                 # OpenAI-compatible mock (RP + OOC), :5100
@@ -55,8 +55,7 @@ for anything that needs an API key ("Never store API keys or secrets in `extensi
 Requests go through `ConnectionManagerRequestService.sendRequest`, i.e. through the SillyTavern server, which injects the
 key from its own secret storage (`data/<user>/secrets.json`). The key never reaches the browser, there are no CORS
 issues, and every source SillyTavern supports works (OpenRouter, OpenAI, Claude, custom OpenAI-compatible URLs, proxies,
-text-completion backends). Your roleplay preset is not applied to these requests. Without a profile the counter uses
-regex triggers and a rough offline estimate.
+text-completion backends). Your roleplay preset is not applied to these requests. Without a profile nothing is measured.
 
 **When the model is called.** Only after a regex trigger fires on a new message, i.e. the moment of the climax itself.
 No trigger, no request.
@@ -68,12 +67,12 @@ No trigger, no request.
 | Preset: main prompt, jailbreak, preset system prompts | **Cumometer rules** (~1k tokens): procedure, what counts, how to size the volume, safety, strict JSON format with examples |
 | Character card, persona, active lorebook entries | **The same**: `getCharacterCardFields()` + `getWorldInfoPrompt()` with the same scan, in dry-run mode (timed effects untouched) |
 | Whole chat history | **Last 4 messages**, the measured one last |
-| — | `<measurement_request>`: running total, regex omegaverse hint, reply language |
+| — | `<measurement_request>`: episodes so far and running totals on both scales |
 
 **What it must return** — exactly one object:
-`{"happened": bool, "count": int, "base": number, "omega-pizdec": number, "omegaverse": bool, "comment": string}`: **base** is the realistic volume (human physiology whatever the lore), **omega-pizdec** the lore-scaled one (omegaverse, monsters, hentai physics). The extension keeps both totals; the leaderboard has a board for each. The reader tolerates fences, prose
-around the JSON, quoted numbers, units and comma decimals; if there is still no valid JSON it asks once more, then falls back
-to the offline estimate.
+`{"happened": bool, "count": int, "base": number, "omega-pizdec": number}`: **base** is the realistic volume (human physiology whatever the lore), **omega-pizdec** the lore-scaled one (omegaverse, monsters, hentai physics). The extension keeps both totals; the leaderboard has a board for each. The reader tolerates fences, prose
+around the JSON, quoted numbers, units and comma decimals; if there is still no valid JSON it asks once more, then leaves the message
+uncounted.
 
 ## Leaderboard / Лидерборд
 

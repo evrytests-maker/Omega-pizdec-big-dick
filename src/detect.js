@@ -1,4 +1,4 @@
-// Regex triggers and the offline fallback estimator.
+// Regex triggers: the only gate in front of the measuring model.
 // Boundaries follow ACE-SKILL (references/keys-and-regex.md): JS \b does not
 // understand Cyrillic, so both edges use Unicode letter/number lookarounds.
 // Case-insensitive on purpose: prose capitalises at sentence start.
@@ -43,25 +43,7 @@ export const TRIGGER_SOURCES = {
 
 const TRIGGERS = Object.values(TRIGGER_SOURCES).map(word);
 
-const OMEGAVERSE = [
-    'omega\\s?verse',
-    'омегаверс',
-    `knot(?:s|ted|ting)?${END}`,
-    `rut${END}`,
-    'течк',
-    `гон(?:е|а)?${END}`,
-    `узл(?:ом|а|е)${END}|узел${END}`,
-].map(word);
-
-const ALPHA_OMEGA = word('alpha|omega|альф|омег');
 export { word };
-
-const INTENSITY = word(
-    'flood|gallon|bucket|overflow|bulg|inflat|endless|torrent|gush|rope after rope|' +
-    'литр|ведр|поток|переполн|раздул|бесконечн|фонтан|хлещ|обильн|струями|живот округл',
-);
-
-const ROUNDS = /again|another round|second time|снова|ещё раз|еще раз|второй раз|опять/giu;
 
 function clean(text) {
     return String(text ?? '').replace(/<[^>]+>/g, ' ');
@@ -70,37 +52,4 @@ function clean(text) {
 export function triggers(text) {
     const t = clean(text);
     return TRIGGERS.some((re) => re.test(t));
-}
-
-/** True when the card or recent story looks like omegaverse. */
-export function looksOmegaverse(text) {
-    const t = clean(text);
-    if (word('omega\\s?verse|омегаверс').test(t)) return true;
-    const hits = OMEGAVERSE.filter((re) => re.test(t)).length;
-    return hits >= 1 && ALPHA_OMEGA.test(t);
-}
-
-const rand = (a, b) => a + Math.random() * (b - a);
-
-/** Offline realistic ("base") estimate: plain human physiology, whatever the lore says. */
-export function heuristicBase(text) {
-    const rounds = 1 + Math.min(3, (clean(text).match(ROUNDS) || []).length);
-    return Math.round(rand(2, 6) * rounds * 10) / 10;
-}
-
-/** Offline omega-pizdec (lore-scaled) estimate used when no model is configured or the call failed. */
-export function heuristicMl(text, { omega = false } = {}) {
-    const t = clean(text);
-    const rounds = 1 + Math.min(3, (t.match(ROUNDS) || []).length);
-    let intensity = 1;
-    for (const m of t.matchAll(new RegExp(INTENSITY.source, 'giu'))) {
-        if (m) intensity = Math.min(intensity * 1.8, 12);
-    }
-    let ml = rand(2, 6) * rounds;
-    if (omega) {
-        ml *= rand(40, 250);
-        if (word('knot|узл|узел').test(t)) ml *= 1.5;
-    }
-    ml *= intensity;
-    return Math.round(ml * 10) / 10;
 }
