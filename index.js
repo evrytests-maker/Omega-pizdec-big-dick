@@ -1,11 +1,12 @@
 import { triggers, looksOmegaverse, heuristicMl } from './src/detect.js';
-import { measure, ping } from './src/llm.js';
+import { measure, ping, listProfiles } from './src/llm.js';
 import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS, QUIPS } from './src/i18n.js';
 import { Jar, JAR_SVG, MINI_JAR_SVG, split } from './src/jar.js';
 import { submit as submitSealed, boardUrl } from './src/board.js';
 
 const MODULE = 'cumometer';
-const LS_API_KEY = 'cumometer.apiKey';
+// Earlier versions kept a raw API key here; it is wiped on load (see init).
+const LS_LEGACY_API_KEY = 'cumometer.apiKey';
 const LS_USER_KEY = 'cumometer.userKey';
 
 const DEFAULTS = {
@@ -14,13 +15,11 @@ const DEFAULTS = {
     showComments: true,
     lang: 'auto',
     theme: 'auto',
-    mode: 'hybrid',
     liquidGlass: true,
     jarSize: 3000,
     scanUser: false,
-    provider: 'openai',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    model: '',
+    // Connection Manager profile id for the OOC model; empty = regex + offline estimate.
+    profileId: '',
     leaderboardUrl: '',
     nickname: '',
     // charKey -> { name, chats: { chatId: ml } }
@@ -45,7 +44,6 @@ const save = () => ctx().saveSettingsDebounced();
 function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } }
 
-function apiKey() { return lsGet(LS_API_KEY); }
 
 function userKey() {
     let k = lsGet(LS_USER_KEY);
@@ -167,12 +165,9 @@ async function processIndex(i, { force = false } = {}) {
     const omegaHint = looksOmegaverse(card + '\n' + history + '\n' + text);
 
     let res = null;
-    if (s.mode === 'hybrid' && s.model) {
+    if (s.profileId) {
         try {
-            res = await measure(
-                { provider: s.provider, baseUrl: s.baseUrl, model: s.model, apiKey: apiKey() },
-                { charName: ch.name, lang, card, omegaHint, history, message: text, totalMl: compute().total },
-            );
+            res = await measure(s.profileId, { charName: ch.name, lang, card, omegaHint, history, message: text, totalMl: compute().total });
         } catch (e) {
             console.warn('[Cumometer] OOC model failed:', e);
             if (!apiWarned) {
@@ -477,6 +472,12 @@ function renderSettings() {
     const s = settings();
     const L = strings(resolveLang(s.lang));
     const esc = escapeHtml;
+    const profiles = listProfiles();
+    // A deleted profile must not keep sending requests.
+    if (profiles && s.profileId && !profiles.some((p) => p.id === s.profileId)) {
+        s.profileId = '';
+        save();
+    }
 
     const toggle = (k, label) => `
         <label class="cm-s-row">
@@ -528,20 +529,26 @@ function renderSettings() {
                     ${seg('jarSize', L.sJar, [500, 1000, 3000, 10000].map((v) => [v, fmtStr(v, L)]), true)}
                 `)}
 
-                ${group(L.sMeasure, `
-                    ${seg('mode', L.sMode, [['hybrid', L.sModeHybrid], ['regex', L.sModeRegex]])}
-                    ${toggle('scanUser', L.sScanUser)}
-                `, L.sMeasureHint)}
-
-                ${group(L.sModel, `
-                    ${seg('provider', L.sProvider, [['openai', 'OpenAI'], ['anthropic', 'Anthropic']])}
-                    ${field('baseUrl', L.sBase, { type: 'url', placeholder: 'https://openrouter.ai/api/v1' })}
-                    ${field('model', L.sModelName, { placeholder: 'google/gemini-2.5-flash-lite' })}
-                    ${field('', L.sKey, { type: 'password', placeholder: 'sk-…', value: apiKey(), cls: 'cm-apikey' })}
-                    <button type="button" class="cm-s-row cm-s-action cm-test">
+                ${group(L.sModel, profiles === null ? `
+                    <div class="cm-s-row"><span class="cm-s-label cm-s-dim">${L.sCmOff}</span></div>
+                ` : `
+                    <label class="cm-s-row">
+                        <span class="cm-s-label">${L.sProfile}</span>
+                        <span class="cm-s-menu">
+                            <select class="cm-s-select" data-k="profileId">
+                                <option value="">${L.sProfileNone}</option>
+                                ${profiles.map((p) => `<option value="${esc(p.id)}" ${p.id === s.profileId ? 'selected' : ''}>${esc(p.name || p.id)}${p.model ? ` · ${esc(p.model)}` : ''}</option>`).join('')}
+                            </select>
+                        </span>
+                    </label>
+                    <button type="button" class="cm-s-row cm-s-action cm-test" ${s.profileId ? '' : 'disabled'}>
                         <span>${L.sTest}</span><span class="cm-test-out" aria-live="polite"></span>
                     </button>
-                `, L.sKeyHint)}
+                `, profiles === null ? '' : L.sProfileHint)}
+
+                ${group(L.sMeasure, `
+                    ${toggle('scanUser', L.sScanUser)}
+                `)}
 
                 ${group(L.sBoard, `
                     ${field('nickname', L.sNick, { placeholder: 'anon', max: 24 })}
@@ -566,17 +573,12 @@ function renderSettings() {
     }
 
     const commit = (k) => {
-        if (k === 'provider') {
-            if (s.provider === 'anthropic' && /openrouter|openai/.test(s.baseUrl)) s.baseUrl = 'https://api.anthropic.com/v1';
-            if (s.provider === 'openai' && /anthropic\.com/.test(s.baseUrl)) s.baseUrl = 'https://openrouter.ai/api/v1';
-            panel.querySelector('[data-k="baseUrl"]').value = s.baseUrl;
-        }
         save();
-        if (k === 'lang') renderSettings();
+        if (k === 'lang' || k === 'profileId') renderSettings();
         refresh();
     };
 
-    panel.querySelectorAll('input[data-k]').forEach((el) => {
+    panel.querySelectorAll('input[data-k], select[data-k]').forEach((el) => {
         el.addEventListener('change', () => {
             s[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value.trim();
             commit(el.dataset.k);
@@ -592,13 +594,12 @@ function renderSettings() {
             commit(k);
         });
     });
-    panel.querySelector('.cm-apikey').addEventListener('change', (e) => lsSet(LS_API_KEY, e.target.value.trim()));
-    panel.querySelector('.cm-test').addEventListener('click', async () => {
+    panel.querySelector('.cm-test')?.addEventListener('click', async () => {
         const out = panel.querySelector('.cm-test-out');
         out.className = 'cm-test-out is-busy';
         out.textContent = '…';
         try {
-            const r = await ping({ provider: s.provider, baseUrl: s.baseUrl, model: s.model, apiKey: apiKey() });
+            const r = await ping(s.profileId);
             out.className = 'cm-test-out is-ok';
             out.textContent = `✓ ${r}`;
         } catch (e) {
@@ -618,8 +619,12 @@ function renderSettings() {
     const { eventSource, event_types } = ctx();
     settings();
     userKey();
+    try { localStorage.removeItem(LS_LEGACY_API_KEY); } catch { /* private mode */ }
     buildPill();
     renderSettings();
+    for (const ev of ['CONNECTION_PROFILE_CREATED', 'CONNECTION_PROFILE_DELETED', 'CONNECTION_PROFILE_UPDATED']) {
+        if (event_types[ev]) eventSource.on(event_types[ev], () => renderSettings());
+    }
 
     // Refresh even when the text was measured before: a repeated reply still counts again.
     const onMessage = (id) => enqueue(async () => {

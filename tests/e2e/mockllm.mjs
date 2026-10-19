@@ -14,9 +14,9 @@ http.createServer((req, res) => {
   req.on('data', (c) => (body += c));
   req.on('end', () => {
     const j = body ? JSON.parse(body) : {};
-    const sys = j.messages?.find((m) => m.role === 'system')?.content || j.system || '';
-    const isOoc = /Cumometer/.test(sys);
-    fs.appendFileSync(LOG, JSON.stringify({ url: req.url, ooc: isOoc, auth: req.headers.authorization || req.headers['x-api-key'] || null, stream: !!j.stream, model: j.model, user: isOoc ? j.messages?.at(-1)?.content : undefined }) + '\n');
+    // ST may reshape roles (prompt post-processing), so look at the whole conversation.
+    const isOoc = /You are the Cumometer/.test(JSON.stringify(j.messages || j.prompt || ''));
+    fs.appendFileSync(LOG, JSON.stringify({ url: req.url, ooc: isOoc, auth: req.headers.authorization || req.headers['x-api-key'] || null, stream: !!j.stream, model: j.model, contract: /## How to report/.test(JSON.stringify(j.messages || j.prompt || '')), user: isOoc ? j.messages?.at(-1)?.content : undefined }) + '\n');
     if (req.url.endsWith('/models')) { res.writeHead(200, { ...cors, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ object: 'list', data: [{ id: 'mock-rp', object: 'model' }, { id: 'mock-ooc', object: 'model' }] })); }
     let content;
     if (isOoc) {

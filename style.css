@@ -812,6 +812,54 @@ label.cm-s-row { cursor: pointer; }
 .cm-s .cm-s-input::placeholder { color: color-mix(in srgb, var(--s-fg) 32%, transparent); }
 .cm-s .cm-s-input:focus { color: var(--s-fg); }
 
+/* menu row: a native <select> dressed as an iOS pop-up button */
+.cm-s .cm-s-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: 68%;
+}
+
+.cm-s .cm-s-menu::after {
+    content: "";
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    margin: -3px 2px 0 8px;
+    border-right: 1.6px solid var(--s-dim);
+    border-bottom: 1.6px solid var(--s-dim);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.cm-s .cm-s-select {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    padding: 4px 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--s-dim);
+    font: inherit;
+    text-align: right;
+    text-align-last: right;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.cm-s .cm-s-select option { color: initial; background: initial; }
+.cm-s .cm-s-select:focus-visible { color: var(--s-fg); }
+.cm-s .cm-s-dim { color: var(--s-dim); font-size: 13px; }
+.cm-s button.cm-s-action:disabled { opacity: 0.4; cursor: default; }
+.cm-s button.cm-s-action:disabled:hover { background: none; }
+
 /* action rows and buttons */
 .cm-s button.cm-s-action {
     all: unset;

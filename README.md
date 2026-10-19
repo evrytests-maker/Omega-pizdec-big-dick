@@ -28,7 +28,7 @@ node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (
 
 ### End-to-end in real SillyTavern
 
-`tests/e2e/` drives a real SillyTavern build with Playwright (39 checks: install, settings UI, regex → OOC call,
+`tests/e2e/` drives a real SillyTavern build with Playwright (43 checks: install, settings UI, regex → OOC call,
 omegaverse context, swipes/deletes, reload persistence, offline fallback, sealed leaderboard submit, Liquid Glass on/off, jar overflow).
 
 ```bash
@@ -43,21 +43,24 @@ node tests/e2e/e2e.mjs /tmp                                 # expects /tmp/llm.l
 
 Extensions → Install extension → `https://github.com/evrytests-maker/Omega-pizdec-big-dick`
 
-## OOC model / OOC-модель
+## Model / Модель
 
-Settings → Cumometer → OOC model:
+The measuring model is reached through a **SillyTavern Connection Manager profile**, the way the SillyTavern docs recommend
+for anything that needs an API key ("Never store API keys or secrets in `extensionSettings`").
 
-| API format | Endpoint example | Model example |
-|---|---|---|
-| OpenAI-compatible | `https://openrouter.ai/api/v1` | `google/gemini-2.5-flash-lite` |
-| OpenAI-compatible | `https://api.openai.com/v1` | any small chat model |
-| OpenAI-compatible | `https://api.groq.com/openai/v1` | any Groq model |
-| OpenAI-compatible | `http://127.0.0.1:11434/v1` (Ollama), `http://127.0.0.1:1234/v1` (LM Studio) | local model |
-| Anthropic | `https://api.anthropic.com/v1` | `claude-haiku-5-5` |
+1. In SillyTavern, set up the API you want for measuring (a small, cheap model is plenty) and save it as a profile:
+   plug icon → **Connection Profile → Create**.
+2. Cumometer → **Model → Profile**: pick that profile. **Test profile** sends a one-word ping through it.
 
-The endpoint is free-form, so proxies and gateways work. The request is sent from the browser, so the endpoint must allow CORS; OpenRouter, OpenAI, Anthropic and local servers do.
+Requests go through `ConnectionManagerRequestService.sendRequest`, i.e. through the SillyTavern server, which injects the
+key from its own secret storage (`data/<user>/secrets.json`). The key never reaches the browser, there are no CORS
+issues, and every source SillyTavern supports works (OpenRouter, OpenAI, Claude, custom OpenAI-compatible URLs, proxies,
+text-completion backends). Your roleplay preset is not applied to these requests. Without a profile the counter uses
+regex triggers and a rough offline estimate.
 
-The API key is kept in the browser's `localStorage`, **not** in SillyTavern settings, so other extensions can't read it from there.
+The model gets a fixed ~590-token system prompt (`src/llm.js`): what counts as an ejaculation, how to size it (human
+baseline, lore and omegaverse scaling, intensity cues, consistency with the running total), a safety rule, and a strict
+one-object JSON reply format.
 
 ## Leaderboard / Лидерборд
 
