@@ -1,5 +1,5 @@
 import { redis, pipeline } from '../lib/redis.js';
-import { cors, idFromKey, hashToObject } from '../lib/http.js';
+import { cors, idFromOwner, hashToObject } from '../lib/http.js';
 
 export default async function handler(req, res) {
     cors(res);
@@ -13,18 +13,13 @@ export default async function handler(req, res) {
         for (let i = 0; i < flat.length; i += 2) ids.push(flat[i]);
 
         const users = ids.length ? await pipeline(ids.map((id) => ['HGETALL', `u:${id}`])) : [];
-        const meId = idFromKey(req.query.me);
-        const rows = ids.map((id, i) => {
-            const u = hashToObject(users[i]);
-            return {
-                rank: i + 1,
-                nick: u.nick || 'anon',
-                ml: Number(flat[i * 2 + 1]) || 0,
-                topChar: u.top || '',
-                topCharMl: Number(u.topMl) || 0,
-                me: meId === id || undefined,
-            };
-        });
+        const meId = idFromOwner(req.query.me);
+        const rows = ids.map((id, i) => ({
+            rank: i + 1,
+            nick: hashToObject(users[i]).nick || 'anon',
+            ml: Number(flat[i * 2 + 1]) || 0,
+            me: meId === id || undefined,
+        }));
 
         const [players, total] = await pipeline([['ZCARD', 'lb'], ['GET', 'stats:total']]);
         const stats = { players: Number(players) || 0, totalMl: Math.max(0, Number(total) || 0) };

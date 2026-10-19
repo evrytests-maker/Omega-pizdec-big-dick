@@ -2,6 +2,7 @@ import { triggers, looksOmegaverse, heuristicMl } from './src/detect.js';
 import { measure, ping } from './src/llm.js';
 import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS, QUIPS } from './src/i18n.js';
 import { Jar, JAR_SVG, MINI_JAR_SVG, split } from './src/jar.js';
+import { submit as submitSealed, boardUrl } from './src/board.js';
 
 const MODULE = 'cumometer';
 const LS_API_KEY = 'cumometer.apiKey';
@@ -127,15 +128,6 @@ function syncCharTotals(stats) {
 
 const charTotal = (key) => Object.values(settings().chars[key]?.chats || {}).reduce((a, b) => a + b, 0);
 const grandTotal = () => Object.keys(settings().chars).reduce((a, k) => a + charTotal(k), 0);
-
-function topChar() {
-    let best = null;
-    for (const [k, rec] of Object.entries(settings().chars)) {
-        const t = charTotal(k);
-        if (!best || t > best.ml) best = { name: rec.name, ml: t };
-    }
-    return best;
-}
 
 function pruneEntries(meta) {
     const live = new Set(ctx().chat.map((m) => hash(m.mes)));
@@ -466,30 +458,50 @@ async function submitLeaderboard() {
     const s = settings();
     const L = strings(resolveLang(s.lang));
     if (!s.leaderboardUrl) return toastr.warning(L.noBoard);
-    const nickname = (s.nickname || '').trim() || `anon-${userKey().slice(0, 4)}`;
-    const total = grandTotal();
-    if (!confirm(L.submitConfirm(nickname, fmtStr(total, L)))) return;
-    const top = topChar();
+    const nick = (s.nickname || '').trim() || `anon-${userKey().slice(0, 4)}`;
+    const ml = Math.round(grandTotal() * 10) / 10;
+    if (!confirm(L.submitConfirm(nick, fmtStr(ml, L)))) return;
     try {
-        const res = await fetch(`${s.leaderboardUrl.replace(/\/+$/, '')}/api/submit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userKey: userKey(), nickname, ml: total, topChar: top?.name || '', topCharMl: top?.ml || 0 }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        const data = await submitSealed(s.leaderboardUrl, { nick, ml, localKey: userKey() });
         toastr.success(L.submitted(data.rank), L.board);
     } catch (e) {
-        toastr.error(String(e.message || e), L.board);
+        toastr.error(e.code === 'nick_taken' ? L.nickTaken : String(e.message || e), L.board);
     }
 }
 
 // ───────────────────────── settings panel ─────────────────────────
 
+// iOS-style grouped settings. Colours derive from the active SillyTavern theme
+// (--SmartThemeBodyColor), so the panel looks native on any theme.
 function renderSettings() {
     const s = settings();
     const L = strings(resolveLang(s.lang));
-    const opt = (v, label, cur) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${label}</option>`;
+    const esc = escapeHtml;
+
+    const toggle = (k, label) => `
+        <label class="cm-s-row">
+            <span class="cm-s-label">${label}</span>
+            <input type="checkbox" class="cm-s-switch" data-k="${k}" ${s[k] ? 'checked' : ''}>
+        </label>`;
+    const seg = (k, label, options, num = false) => `
+        <div class="cm-s-row cm-s-row--seg">
+            <span class="cm-s-label">${label}</span>
+            <div class="cm-s-seg" data-k="${k}" ${num ? 'data-num' : ''} role="radiogroup">
+                ${options.map(([v, t]) => `<button type="button" role="radio" data-v="${v}" aria-checked="${String(s[k]) === String(v)}">${t}</button>`).join('')}
+            </div>
+        </div>`;
+    const field = (k, label, { type = 'text', placeholder = '', value = s[k], cls = '', max = '' } = {}) => `
+        <label class="cm-s-row">
+            <span class="cm-s-label">${label}</span>
+            <input class="cm-s-input ${cls}" type="${type}" ${k ? `data-k="${k}"` : ''} value="${esc(value ?? '')}" placeholder="${esc(placeholder)}" ${max ? `maxlength="${max}"` : ''} autocomplete="off" spellcheck="false">
+        </label>`;
+    const group = (title, rows, footer = '') => `
+        <section class="cm-s-group">
+            ${title ? `<h4 class="cm-s-title">${title}</h4>` : ''}
+            <div class="cm-s-card">${rows}</div>
+            ${footer ? `<p class="cm-s-foot">${footer}</p>` : ''}
+        </section>`;
+
     const html = `
     <div class="cm-settings inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
@@ -497,77 +509,106 @@ function renderSettings() {
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <section>
-                <h4>${L.sDisplay}</h4>
-                <label class="cm-switch"><span>${L.sEnabled}</span><input type="checkbox" data-k="enabled" ${s.enabled ? 'checked' : ''}></label>
-                <label class="cm-switch"><span>${L.sGlass}</span><input type="checkbox" data-k="liquidGlass" ${s.liquidGlass ? 'checked' : ''}></label>
-                <label class="cm-field"><span>${L.sJar}</span><select data-k="jarSize" data-num>${[500, 1000, 3000, 10000].map((v) => opt(v, fmtStr(v, L), Number(s.jarSize))).join('')}</select></label>
-                <label class="cm-switch"><span>${L.sPill}</span><input type="checkbox" data-k="showPill" ${s.showPill ? 'checked' : ''}></label>
-                <label class="cm-switch"><span>${L.sComments}</span><input type="checkbox" data-k="showComments" ${s.showComments ? 'checked' : ''}></label>
-                <label class="cm-field"><span>${L.sLang}</span><select data-k="lang">${opt('auto', L.auto, s.lang)}${opt('en', 'English', s.lang)}${opt('ru', 'Русский', s.lang)}</select></label>
-                <label class="cm-field"><span>${L.sTheme}</span><select data-k="theme">${opt('auto', L.auto, s.theme)}${opt('light', L.light, s.theme)}${opt('dark', L.dark, s.theme)}</select></label>
-            </section>
-            <section>
-                <h4>${L.sMeasure}</h4>
-                <label class="cm-field"><span>${L.sMode}</span><select data-k="mode">${opt('hybrid', L.sModeHybrid, s.mode)}${opt('regex', L.sModeRegex, s.mode)}</select></label>
-                <label class="cm-switch"><span>${L.sScanUser}</span><input type="checkbox" data-k="scanUser" ${s.scanUser ? 'checked' : ''}></label>
-            </section>
-            <section>
-                <h4>${L.sModel}</h4>
-                <label class="cm-field"><span>${L.sProvider}</span><select data-k="provider">${opt('openai', 'OpenAI-compatible', s.provider)}${opt('anthropic', 'Anthropic', s.provider)}</select></label>
-                <label class="cm-field"><span>${L.sBase}</span><input class="text_pole" type="url" data-k="baseUrl" value="${escapeHtml(s.baseUrl)}" placeholder="https://openrouter.ai/api/v1"></label>
-                <label class="cm-field"><span>${L.sModelName}</span><input class="text_pole" type="text" data-k="model" value="${escapeHtml(s.model)}" placeholder="google/gemini-2.5-flash-lite"></label>
-                <label class="cm-field"><span>${L.sKey}</span><input class="text_pole cm-apikey" type="password" autocomplete="off" value="${escapeHtml(apiKey())}" placeholder="sk-…"></label>
-                <small>${L.sKeyHint}</small>
-                <div class="cm-row"><button type="button" class="menu_button cm-test">${L.sTest}</button><span class="cm-test-out"></span></div>
-            </section>
-            <section>
-                <h4>${L.sBoard}</h4>
-                <label class="cm-field"><span>${L.sBoardUrl}</span><input class="text_pole" type="url" data-k="leaderboardUrl" value="${escapeHtml(s.leaderboardUrl)}" placeholder="https://your-board.vercel.app"></label>
-                <label class="cm-field"><span>${L.sNick}</span><input class="text_pole" type="text" maxlength="24" data-k="nickname" value="${escapeHtml(s.nickname)}"></label>
-                <small>${L.sYourKey}: <code>${userKey().slice(0, 8)}…</code></small>
-                <div class="cm-row">
-                    <button type="button" class="menu_button cm-submit-s">${L.submit}</button>
-                    <button type="button" class="menu_button cm-open-board">${L.sOpen}</button>
+            <div class="cm-s">
+                <div class="cm-s-hero">
+                    <div class="cm-s-icon">${MINI_JAR_SVG}</div>
+                    <div>
+                        <div class="cm-s-name">Cumometer</div>
+                        <div class="cm-s-sub">${L.sTagline}</div>
+                    </div>
+                    <input type="checkbox" class="cm-s-switch" data-k="enabled" ${s.enabled ? 'checked' : ''} aria-label="${L.sEnabled}">
                 </div>
-            </section>
+
+                ${group(L.sDisplay, `
+                    ${toggle('showPill', L.sPill)}
+                    ${toggle('showComments', L.sComments)}
+                    ${toggle('liquidGlass', L.sGlass)}
+                    ${seg('theme', L.sTheme, [['auto', L.auto], ['light', L.light], ['dark', L.dark]])}
+                    ${seg('lang', L.sLang, [['auto', L.auto], ['en', 'EN'], ['ru', 'RU']])}
+                    ${seg('jarSize', L.sJar, [500, 1000, 3000, 10000].map((v) => [v, fmtStr(v, L)]), true)}
+                `)}
+
+                ${group(L.sMeasure, `
+                    ${seg('mode', L.sMode, [['hybrid', L.sModeHybrid], ['regex', L.sModeRegex]])}
+                    ${toggle('scanUser', L.sScanUser)}
+                `, L.sMeasureHint)}
+
+                ${group(L.sModel, `
+                    ${seg('provider', L.sProvider, [['openai', 'OpenAI'], ['anthropic', 'Anthropic']])}
+                    ${field('baseUrl', L.sBase, { type: 'url', placeholder: 'https://openrouter.ai/api/v1' })}
+                    ${field('model', L.sModelName, { placeholder: 'google/gemini-2.5-flash-lite' })}
+                    ${field('', L.sKey, { type: 'password', placeholder: 'sk-…', value: apiKey(), cls: 'cm-apikey' })}
+                    <button type="button" class="cm-s-row cm-s-action cm-test">
+                        <span>${L.sTest}</span><span class="cm-test-out" aria-live="polite"></span>
+                    </button>
+                `, L.sKeyHint)}
+
+                ${group(L.sBoard, `
+                    ${field('nickname', L.sNick, { placeholder: 'anon', max: 24 })}
+                    ${field('leaderboardUrl', L.sBoardUrl, { type: 'url', placeholder: 'https://….vercel.app' })}
+                    <div class="cm-s-row cm-s-buttons">
+                        <button type="button" class="cm-s-btn cm-s-btn--primary cm-submit-s">${L.sSubmit}</button>
+                        <button type="button" class="cm-s-btn cm-open-board">${L.sOpen}</button>
+                    </div>
+                `, L.sBoardHint)}
+            </div>
         </div>
     </div>`;
 
     const host = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
+    const wasOpen = host.querySelector('.cm-settings .inline-drawer-content')?.style.display === 'block';
     host.querySelector('.cm-settings')?.remove();
     host.insertAdjacentHTML('beforeend', html);
     const panel = host.querySelector('.cm-settings');
+    if (wasOpen) {
+        panel.querySelector('.inline-drawer-content').style.display = 'block';
+        panel.querySelector('.inline-drawer-icon').classList.replace('down', 'up');
+    }
 
-    panel.querySelectorAll('[data-k]').forEach((el) => {
+    const commit = (k) => {
+        if (k === 'provider') {
+            if (s.provider === 'anthropic' && /openrouter|openai/.test(s.baseUrl)) s.baseUrl = 'https://api.anthropic.com/v1';
+            if (s.provider === 'openai' && /anthropic\.com/.test(s.baseUrl)) s.baseUrl = 'https://openrouter.ai/api/v1';
+            panel.querySelector('[data-k="baseUrl"]').value = s.baseUrl;
+        }
+        save();
+        if (k === 'lang') renderSettings();
+        refresh();
+    };
+
+    panel.querySelectorAll('input[data-k]').forEach((el) => {
         el.addEventListener('change', () => {
-            const k = el.dataset.k;
-            s[k] = el.type === 'checkbox' ? el.checked : el.dataset.num !== undefined ? Number(el.value) : el.value.trim();
-            if (k === 'provider') {
-                const base = panel.querySelector('[data-k="baseUrl"]');
-                if (s.provider === 'anthropic' && /openrouter|openai/.test(s.baseUrl)) s.baseUrl = 'https://api.anthropic.com/v1';
-                if (s.provider === 'openai' && /anthropic\.com/.test(s.baseUrl)) s.baseUrl = 'https://openrouter.ai/api/v1';
-                base.value = s.baseUrl;
-            }
-            save();
-            if (k === 'lang') renderSettings();
-            refresh();
+            s[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+            commit(el.dataset.k);
+        });
+    });
+    panel.querySelectorAll('.cm-s-seg').forEach((segEl) => {
+        segEl.addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-v]');
+            if (!b) return;
+            const k = segEl.dataset.k;
+            s[k] = segEl.dataset.num !== undefined ? Number(b.dataset.v) : b.dataset.v;
+            segEl.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+            commit(k);
         });
     });
     panel.querySelector('.cm-apikey').addEventListener('change', (e) => lsSet(LS_API_KEY, e.target.value.trim()));
     panel.querySelector('.cm-test').addEventListener('click', async () => {
         const out = panel.querySelector('.cm-test-out');
+        out.className = 'cm-test-out is-busy';
         out.textContent = '…';
         try {
             const r = await ping({ provider: s.provider, baseUrl: s.baseUrl, model: s.model, apiKey: apiKey() });
+            out.className = 'cm-test-out is-ok';
             out.textContent = `✓ ${r}`;
         } catch (e) {
-            out.textContent = `✕ ${String(e.message || e).slice(0, 120)}`;
+            out.className = 'cm-test-out is-err';
+            out.textContent = `✕ ${String(e.message || e).slice(0, 80)}`;
         }
     });
     panel.querySelector('.cm-submit-s').addEventListener('click', submitLeaderboard);
-    panel.querySelector('.cm-open-board').addEventListener('click', () => {
-        if (s.leaderboardUrl) window.open(`${s.leaderboardUrl.replace(/\/+$/, '')}/?me=${encodeURIComponent(userKey())}`, '_blank', 'noopener');
+    panel.querySelector('.cm-open-board').addEventListener('click', async () => {
+        if (s.leaderboardUrl) window.open(await boardUrl(s.leaderboardUrl, userKey()), '_blank', 'noopener');
     });
 }
 

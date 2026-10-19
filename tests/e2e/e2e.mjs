@@ -66,6 +66,7 @@ check('"Test" button reaches the custom endpoint', testOut.startsWith('✓'), te
 check('absurdity slider removed', await page.locator('.cm-settings [data-k="absurdity"]').count() === 0);
 check('Liquid Glass toggle present and on by default', await page.locator('.cm-settings [data-k="liquidGlass"]').isChecked());
 check('API key kept out of ST settings', await page.evaluate(() => !JSON.stringify(SillyTavern.getContext().extensionSettings.cumometer).includes('sk-test-123')));
+await page.locator('.cm-settings .cm-s').screenshot({ path: SP + '/settings-dark.png' });
 await page.click('#extensions-settings-button');
 
 // Connect ST itself to the mock (Custom OpenAI-compatible source preset in settings.json).
@@ -186,7 +187,11 @@ await page.click('.cm-submit');
 await page.waitForTimeout(1500);
 const board = await (await fetch('http://127.0.0.1:5200/api/top')).json();
 const me = board.rows.find((r) => r.nick === 'tester');
-check('leaderboard received this submission', !!me && Math.abs(me.ml - sentTotal) < 10 && me.topChar === 'Ren', `${sentTotal} vs ${JSON.stringify(me)}`);
+check('leaderboard received this submission', !!me && Math.abs(me.ml - sentTotal) < 10, `${sentTotal} vs ${JSON.stringify(me)}`);
+const wire = await (await fetch('http://127.0.0.1:5200/__last_body')).text();
+check('submission is sealed: only v/epk/iv/ct on the wire, no nickname or volume in clear',
+  JSON.stringify(Object.keys(JSON.parse(wire))) === '["v","epk","iv","ct"]' && !wire.includes('tester') && !wire.includes(String(Math.round(sentTotal))));
+check('leaderboard rows expose only rank, nick and volume', Object.keys(me).every((k) => ['rank', 'nick', 'ml', 'me'].includes(k)));
 await page.mouse.click(640, 400);
 
 // 9. Liquid Glass on/off + light theme screenshots.

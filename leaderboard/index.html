@@ -4,105 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cumometer Leaderboard</title>
-<meta name="description" content="Who filled the most jars. The public leaderboard of the Cumometer SillyTavern extension.">
-<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="description" content="The Cumometer leaderboard.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<meta property="og:title" content="Cumometer Leaderboard">
-<meta property="og:description" content="Who filled the most jars.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/styles.css">
 <script type="module" src="/app.js"></script>
 </head>
 <body>
-
-<header class="nav">
-    <div class="nav-inner">
-        <a class="brand" href="#top" aria-label="Cumometer">
-            <img src="/favicon.svg" alt="" width="22" height="22">
-            <span>Cumometer</span>
-        </a>
-        <nav class="nav-links">
-            <a href="#board" data-t="navBoard"></a>
-            <a href="#how" data-t="navHow"></a>
-        </nav>
-        <div class="nav-actions">
-            <button class="lang" type="button" aria-label="Language"></button>
-            <a class="btn btn-small" data-t="getIt" href="https://github.com/evrytests-maker/Omega-pizdec-big-dick" target="_blank" rel="noopener"></a>
-        </div>
-    </div>
+<header class="bar">
+    <a class="mark" href="/">Cumometer</a>
+    <nav>
+        <button class="lang" type="button"></button>
+        <a href="https://github.com/evrytests-maker/Omega-pizdec-big-dick" target="_blank" rel="noopener">GitHub</a>
+    </nav>
 </header>
 
-<main id="top">
-    <section class="hero">
-        <div class="hero-text">
-            <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span data-t="live"></span></p>
-            <h1 data-t="headline"></h1>
-            <p class="lede" data-t="lede"></p>
-            <p class="you" hidden></p>
-        </div>
-        <div class="hero-jar" aria-hidden="true"></div>
-        <dl class="stats">
-            <div class="stat"><dt data-t="statTotal"></dt><dd><span class="stat-num" data-stat="total">0</span><span class="stat-unit" data-stat="totalUnit"></span></dd></div>
-            <div class="stat"><dt data-t="statJars"></dt><dd><span class="stat-num" data-stat="jars">0</span></dd></div>
-            <div class="stat"><dt data-t="statPlayers"></dt><dd><span class="stat-num" data-stat="players">0</span></dd></div>
-        </dl>
-    </section>
+<main>
+    <h1 data-t="title"></h1>
+    <p class="summary"></p>
+    <p class="you" hidden></p>
 
-    <section class="section" id="board">
-        <div class="section-head">
-            <h2 data-t="boardTitle"></h2>
-            <div class="controls">
-                <div class="segmented" role="tablist">
-                    <button type="button" role="tab" data-view="players" aria-selected="true" data-t="tabPlayers"></button>
-                    <button type="button" role="tab" data-view="chars" aria-selected="false" data-t="tabChars"></button>
-                </div>
-                <label class="search">
-                    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-                    <input type="search" data-t-placeholder="search" autocomplete="off">
-                </label>
-            </div>
-        </div>
+    <input class="search" type="search" autocomplete="off" spellcheck="false">
 
-        <div class="podium" aria-live="polite"></div>
-
-        <div class="table" role="table">
-            <div class="row row-head" role="row">
-                <span role="columnheader">#</span>
-                <span role="columnheader" data-t="colName"></span>
-                <span role="columnheader" class="col-jars" data-t="colJars"></span>
-                <span role="columnheader" class="col-vol" data-t="colVolume"></span>
-            </div>
-            <div class="rows"></div>
-        </div>
-        <p class="updated" aria-live="polite"></p>
-    </section>
-
-    <section class="section" id="how">
-        <h2 data-t="howTitle"></h2>
-        <div class="cards">
-            <article class="card">
-                <span class="card-num">1</span>
-                <h3 data-t="how1t"></h3>
-                <p data-t="how1"></p>
-            </article>
-            <article class="card">
-                <span class="card-num">2</span>
-                <h3 data-t="how2t"></h3>
-                <p data-t="how2"></p>
-            </article>
-            <article class="card">
-                <span class="card-num">3</span>
-                <h3 data-t="how3t"></h3>
-                <p data-t="how3"></p>
-            </article>
-        </div>
-        <p class="privacy" data-t="privacy"></p>
-    </section>
+    <ol class="list" aria-live="polite"></ol>
+    <p class="note"></p>
 </main>
 
-<footer class="footer">
-    <p data-t="footer"></p>
+<footer>
+    <p data-t="about"></p>
+    <p class="updated"></p>
 </footer>
-
 </body>
 </html>

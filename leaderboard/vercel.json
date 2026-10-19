@@ -2,7 +2,7 @@
     "cleanUrls": true,
     "headers": [
         {
-            "source": "/(styles.css|app.js|jar.js|favicon.svg)",
+            "source": "/(styles.css|app.js|favicon.svg)",
             "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=86400" }]
         }
     ]

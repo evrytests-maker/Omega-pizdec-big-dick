@@ -1,0 +1,54 @@
+// Leaderboard client. A submission is sealed to the server's public key, so only the
+// leaderboard deployment can read it. It carries the volume, the nickname, a timestamp
+// against replays, and `owner`: SHA-256 of the local key, which proves the nickname is
+// yours without the key itself ever leaving the browser.
+const { subtle } = crypto;
+const ALG = { name: 'ECDH', namedCurve: 'P-256' };
+const enc = new TextEncoder();
+
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const base = (url) => String(url || '').trim().replace(/\/+$/, '');
+
+export async function ownerHash(localKey) {
+    const digest = await subtle.digest('SHA-256', enc.encode(localKey));
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function seal(serverJwk, payload) {
+    const server = await subtle.importKey('jwk', serverJwk, ALG, false, []);
+    const eph = await subtle.generateKey(ALG, true, ['deriveBits']);
+    const shared = await subtle.deriveBits({ name: 'ECDH', public: server }, eph.privateKey, 256);
+    const hkdf = await subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+    const aes = await subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: enc.encode('cumometer/v1'), info: enc.encode('submit') },
+        hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt'],
+    );
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await subtle.encrypt({ name: 'AES-GCM', iv }, aes, enc.encode(JSON.stringify(payload)));
+    const { x, y } = await subtle.exportKey('jwk', eph.publicKey);
+    return { v: 1, epk: { x, y }, iv: b64url(iv), ct: b64url(ct) };
+}
+
+export async function submit(url, { nick, ml, localKey }) {
+    const keyRes = await fetch(`${base(url)}/api/key`);
+    const keyJson = await keyRes.json().catch(() => ({}));
+    if (!keyRes.ok || !keyJson.key) throw new Error(keyJson.error || `HTTP ${keyRes.status}`);
+
+    const envelope = await seal(keyJson.key, { nick, ml, owner: await ownerHash(localKey), ts: Date.now() });
+    const res = await fetch(`${base(url)}/api/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(envelope),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const err = new Error(data.error || `HTTP ${res.status}`);
+        err.code = data.code;
+        throw err;
+    }
+    return data;
+}
+
+export async function boardUrl(url, localKey) {
+    return `${base(url)}/?me=${await ownerHash(localKey)}`;
+}

@@ -30,16 +30,24 @@ http.createServer((req, res) => {
 process.env.KV_REST_API_URL = 'http://127.0.0.1:5201';
 process.env.KV_REST_API_TOKEN = 't';
 const dir = process.argv[2];
+if (!process.env.BOARD_PRIVATE_KEY) {
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  process.env.BOARD_PRIVATE_KEY = JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey));
+}
+const key = (await import(dir + '/api/key.js')).default;
 const submit = (await import(dir + '/api/submit.js')).default;
 const top = (await import(dir + '/api/top.js')).default;
-export const reset = () => kv.clear();
+let lastBody = '';
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', async () => {
+    if (u.pathname === '/api/submit') lastBody = b;
     const vreq = { method: req.method, query: Object.fromEntries(u.searchParams), body: b ? JSON.parse(b) : undefined };
     const vres = { setHeader: (k, v) => res.setHeader(k, v), status(c) { res.statusCode = c; return this; }, json(o) { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(o)); }, end() { res.end(); } };
     if (u.pathname === '/api/submit') return submit(vreq, vres);
     if (u.pathname === '/api/top') return top(vreq, vres);
+    if (u.pathname === '/api/key') return key(vreq, vres);
+    if (u.pathname === '/__last_body') return res.end(lastBody);
     if (u.pathname === '/__clear_rl') { for (const k of kv.keys()) if (k.startsWith('rl:')) kv.delete(k); return res.end('ok'); }
     // Static files, like Vercel serves the project root.
     const file = path.join(dir, u.pathname === '/' ? 'index.html' : u.pathname);

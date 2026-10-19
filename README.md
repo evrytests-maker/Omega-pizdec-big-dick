@@ -28,8 +28,8 @@ node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (
 
 ### End-to-end in real SillyTavern
 
-`tests/e2e/` drives a real SillyTavern build with Playwright (37 checks: install, settings UI, regex → OOC call,
-omegaverse context, swipes/deletes, reload persistence, offline fallback, leaderboard submit, Liquid Glass on/off, jar overflow).
+`tests/e2e/` drives a real SillyTavern build with Playwright (39 checks: install, settings UI, regex → OOC call,
+omegaverse context, swipes/deletes, reload persistence, offline fallback, sealed leaderboard submit, Liquid Glass on/off, jar overflow).
 
 ```bash
 node tests/e2e/mockllm.mjs /tmp/llm.log &                 # OpenAI-compatible mock (RP + OOC), :5100
@@ -61,27 +61,33 @@ The API key is kept in the browser's `localStorage`, **not** in SillyTavern sett
 
 ## Leaderboard / Лидерборд
 
-On first run the extension generates a random local key (UUID). Nothing is sent until you press **Submit**. Each submission sends only your nickname, your total, and your top character with its volume. The server stores just a SHA-256 hash of the key.
+Nothing is sent until you press **Submit**. A submission carries exactly two things you chose: your **jar volume** and your
+**nickname** — plus a timestamp (anti-replay) and a one-way fingerprint of your local key (SHA-256), which keeps the
+nickname yours. The key itself never leaves the browser; the server stores only a hash of the fingerprint.
+
+The payload is **sealed** to the leaderboard's public key: ephemeral ECDH P-256 → HKDF-SHA256 → AES-256-GCM (WebCrypto).
+On the wire there is only `{ v, epk, iv, ct }`; only the server holding `BOARD_PRIVATE_KEY` can read it. Tampered
+ciphertext is rejected, a captured envelope can't be replayed over a newer result, and a nickname belongs to whoever
+claimed it first.
 
 Deploy the site + API (`leaderboard/`) to Vercel:
 
-1. Push this repo to GitHub, then in Vercel: **Add New → Project → Import** the repo.
-2. **Root Directory** = `leaderboard`. Framework preset: **Other**. No build command, no output directory.
-3. **Storage → Marketplace → Upstash Redis → Create → Connect to project.** It adds `KV_REST_API_URL` / `KV_REST_API_TOKEN`
-   (`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` also work).
-4. **Redeploy** so the functions see the variables.
-5. Paste the project URL (e.g. `https://cumometer.vercel.app`) into SillyTavern → Cumometer → Leaderboard → Server URL.
-
-The site (`index.html`, `styles.css`, `app.js`, `jar.js`) is plain static files: a podium with jars, players/characters
-views, search, live stats and auto-refresh every 30 s, RU/EN, light/dark. The extension's **Open** button passes your key
-as `?me=` so your row is highlighted; the page keeps it in `localStorage` and removes it from the address bar.
+1. In Vercel: **Add New → Project → Import** this repo. **Root Directory** = `leaderboard`, framework preset **Other**,
+   no build command.
+2. **Storage → Marketplace → Upstash Redis → Create → Connect to project** (adds `KV_REST_API_URL` / `KV_REST_API_TOKEN`).
+3. Generate the key pair: `node leaderboard/scripts/genkey.mjs` and add the printed line as the environment variable
+   **`BOARD_PRIVATE_KEY`** (Settings → Environment Variables). Keep it secret; rotating it just changes the public key
+   the extension fetches.
+4. **Redeploy**, then paste the project URL into SillyTavern → Cumometer → Leaderboard → Server URL.
 
 API:
-- `POST /api/submit` `{ userKey, nickname, ml, topChar, topCharMl }` → `{ rank }` (one request per 30 s per key)
-- `GET /api/top?limit=50&me=<userKey>` → `{ rows, me, stats: { players, totalMl } }`
+- `GET /api/key` → `{ v: 1, key: <public JWK> }`
+- `POST /api/submit` `{ v, epk, iv, ct }` → `{ rank }` (one request per 30 s; `409 nick_taken` if the nickname is someone else's)
+- `GET /api/top?limit=50&me=<fingerprint>` → `{ rows: [{ rank, nick, ml }], me, stats: { players, totalMl } }`
+- `/` — the public leaderboard page (plain static files, RU/EN, light/dark).
 
 Preview locally without Vercel: `node tests/e2e/fakeboard.mjs "$PWD/leaderboard"` → http://127.0.0.1:5200
-(real handlers, in-memory Redis).
+(real handlers, in-memory Redis, auto-generated key).
 
 ## Appearance
 

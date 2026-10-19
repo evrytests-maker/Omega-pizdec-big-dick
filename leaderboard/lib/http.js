@@ -6,10 +6,11 @@ export function cors(res) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-// The raw user key never touches storage; only its hash is used as the id.
-export function idFromKey(key) {
-    if (typeof key !== 'string' || key.length < 16 || key.length > 128) return null;
-    return createHash('sha256').update(key).digest('hex').slice(0, 32);
+// `owner` is SHA-256 of the user's local key, computed in the browser; the key itself never
+// leaves it. We store a hash of that again, so a database leak can't be replayed as a submission.
+export function idFromOwner(owner) {
+    if (typeof owner !== 'string' || !/^[0-9a-f]{64}$/.test(owner)) return null;
+    return createHash('sha256').update(owner).digest('hex').slice(0, 32);
 }
 
 export function hashToObject(flat) {
