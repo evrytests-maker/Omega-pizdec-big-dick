@@ -3,7 +3,7 @@ import { measure, ping, listProfiles } from './src/llm.js';
 import { buildMessages } from './src/prompt.js';
 import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS } from './src/i18n.js';
 import { Jar, JAR_SVG, MINI_JAR_SVG, split } from './src/jar.js';
-import { submit as submitSealed, boardUrl } from './src/board.js';
+import { submit as submitSealed, boardUrl, canSeal } from './src/board.js';
 
 const MODULE = 'cumometer';
 // Earlier versions kept a raw API key here; it is wiped on load (see init).
@@ -48,7 +48,8 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { /* private mo
 function userKey() {
     let k = lsGet(LS_USER_KEY);
     if (!k) {
-        k = crypto.randomUUID();
+        // getRandomValues works over plain http too (randomUUID needs a secure context).
+        k = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
         lsSet(LS_USER_KEY, k);
     }
     return k;
@@ -61,6 +62,26 @@ function chatMeta() {
     md[MODULE].entries ??= {};
     md[MODULE].achievements ??= [];
     return md[MODULE];
+}
+
+// SillyTavern copies chat metadata into branches and checkpoints (with `main_chat` set), so a
+// branch arrives carrying its parent's entries. They stay visible in the branch, but only the
+// parent counts them toward all-time totals. A rename keeps ownership (see CHAT_RENAMED).
+function claimChat() {
+    const meta = chatMeta();
+    const id = ctx().getCurrentChatId?.();
+    if (!meta || !id || meta.chatId === id) return;
+    const s = settings();
+    const renamedTo = s.renames?.[meta.chatId];
+    if (meta.chatId && renamedTo !== id && ctx().chatMetadata?.main_chat) {
+        meta.inherited = [...new Set([...(meta.inherited || []), ...Object.keys(meta.entries)])];
+    }
+    if (renamedTo === id) {
+        delete s.renames[meta.chatId];
+        save();
+    }
+    meta.chatId = id;
+    ctx().saveMetadata();
 }
 
 // Entries are keyed by a hash of the message text, so swipes, edits and
@@ -95,12 +116,15 @@ function compute() {
     // Two scores per measurement: `ml` is omega-pizdec (lore-scaled), `base` is realistic.
     const res = { total: 0, base: 0, episodes: 0, perChar: {}, last: null };
     if (!meta || !Array.isArray(c.chat)) return res;
+    const inherited = new Set(meta.inherited || []);
     for (const msg of c.chat) {
-        const e = meta.entries[hash(msg.mes)];
+        const h = hash(msg.mes);
+        const e = meta.entries[h];
         if (!e || !(e.ml > 0)) continue;
         res.total += e.ml;
         res.base += e.base || 0;
         res.episodes += 1;
+        if (inherited.has(h)) continue; // counted in the parent chat
         const pc = (res.perChar[e.char] ??= { omega: 0, base: 0 });
         pc.omega += e.ml;
         pc.base += e.base || 0;
@@ -114,7 +138,10 @@ function syncCharTotals(stats) {
     const chatId = ctx().getCurrentChatId?.();
     if (!chatId) return;
     for (const rec of Object.values(s.chars)) delete rec.chats?.[chatId];
+    const avatars = new Set(ctx().characters.map((x) => x.avatar));
     for (const [key, totals] of Object.entries(stats.perChar)) {
+        // A deleted character must not come back through an old group chat.
+        if (/\.(?:png|webp|jpe?g|gif)$/i.test(key) && !avatars.has(key)) continue;
         const rec = (s.chars[key] ??= { name: key, chats: {} });
         rec.name = ctx().characters.find((x) => x.avatar === key)?.name || rec.name;
         rec.chats[chatId] = totals;
@@ -193,14 +220,22 @@ async function processIndex(i, { force = false } = {}) {
     if (res.happened && !force) announce(res.ml, res.base);
 }
 
+// Re-measures in place: an entry is replaced only when its new measurement succeeds, so a
+// failing model or a missing profile never wipes the tally. Stops if the chat changes.
 async function recountChat() {
+    const s = settings();
+    const L = strings(resolveLang(s.lang));
     const meta = chatMeta();
-    if (!meta) return;
-    const L = strings(resolveLang(settings().lang));
+    const chatId = ctx().getCurrentChatId?.();
+    if (!meta || !chatId || !s.enabled) return;
+    if (!s.profileId) return toastr.warning(L.noProfile);
     toastr.info(L.recounting);
-    meta.entries = {};
     const n = ctx().chat.length;
-    for (let i = 0; i < n; i++) await processIndex(i, { force: true });
+    for (let i = 0; i < n; i++) {
+        if (ctx().getCurrentChatId?.() !== chatId) return;
+        await processIndex(i, { force: true });
+    }
+    if (ctx().getCurrentChatId?.() !== chatId) return;
     pruneEntries(meta);
     await ctx().saveMetadata();
     refresh();
@@ -448,15 +483,17 @@ async function submitLeaderboard() {
     const s = settings();
     const L = strings(resolveLang(s.lang));
     if (!s.leaderboardUrl) return toastr.warning(L.noBoard);
-    const nick = (s.nickname || '').trim() || `anon-${userKey().slice(0, 4)}`;
+    if (!canSeal()) return toastr.error(L.needsSecure, L.board);
+    // An empty nickname lets the server assign a long, collision-free anon-… name.
+    const nick = (s.nickname || '').trim();
     const omega = Math.round(grandTotal('omega') * 10) / 10;
     const base = Math.round(grandTotal('base') * 10) / 10;
-    if (!confirm(L.submitConfirm(nick, fmtStr(omega, L), fmtStr(base, L)))) return;
+    if (!confirm(L.submitConfirm(nick || 'anon', fmtStr(omega, L), fmtStr(base, L)))) return;
     try {
         const data = await submitSealed(s.leaderboardUrl, { nick, omega, base, localKey: userKey() });
         toastr.success(L.submitted(data.rank), L.board);
     } catch (e) {
-        toastr.error(e.code === 'nick_taken' ? L.nickTaken : String(e.message || e), L.board);
+        toastr.error(e.code === 'nick_taken' ? L.nickTaken : e.code === 'insecure' ? L.needsSecure : String(e.message || e), L.board);
     }
 }
 
@@ -614,6 +651,7 @@ function renderSettings() {
     const { eventSource, event_types } = ctx();
     settings();
     userKey();
+    claimChat();
     try { localStorage.removeItem(LS_LEGACY_API_KEY); } catch { /* private mode */ }
     buildPill();
     renderSettings();
@@ -628,12 +666,32 @@ function renderSettings() {
     });
     eventSource.on(event_types.MESSAGE_RECEIVED, onMessage);
     eventSource.on(event_types.MESSAGE_EDITED, onMessage);
-    for (const ev of [event_types.MESSAGE_SWIPED, event_types.MESSAGE_DELETED, event_types.CHAT_CHANGED]) {
-        eventSource.on(ev, () => enqueue(async () => {
-            shownTotal = ev === event_types.CHAT_CHANGED ? 0 : shownTotal;
-            refresh();
-        }));
-    }
+    // Display-only refreshes run immediately instead of waiting behind in-flight model calls.
+    eventSource.on(event_types.MESSAGE_SWIPED, () => refresh());
+    eventSource.on(event_types.MESSAGE_DELETED, () => refresh());
+    eventSource.on(event_types.CHAT_CHANGED, () => {
+        shownTotal = 0;
+        claimChat();
+        refresh();
+    });
+    // A renamed chat keeps its totals under the new name instead of counting twice.
+    eventSource.on(event_types.CHAT_RENAMED, (data) => {
+        const from = data?.oldFileName?.replace(/\.jsonl$/, '');
+        const to = data?.newFileName?.replace(/\.jsonl$/, '');
+        if (!from || !to || from === to) return;
+        const st = settings();
+        for (const rec of Object.values(st.chars)) {
+            if (rec.chats?.[from] !== undefined) {
+                rec.chats[to] = rec.chats[from];
+                delete rec.chats[from];
+            }
+        }
+        const meta = chatMeta();
+        if (meta?.chatId === from) meta.chatId = to;
+        else (st.renames ??= {})[from] = to;
+        save();
+        refresh();
+    });
     // Deleted chats and characters must stop counting toward all-time totals.
     const forgetChat = (chatId) => {
         for (const rec of Object.values(settings().chars)) delete rec.chats?.[chatId];

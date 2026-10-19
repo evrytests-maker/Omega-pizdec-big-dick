@@ -63,3 +63,12 @@ test('extra keys from chatty models are ignored', () => {
     assert.deepEqual(parseReply('{"happened": true, "count": 1, "base": 4, "omega-pizdec": 4, "comment": "lol", "omegaverse": false}'),
         { happened: true, count: 1, ml: 4, base: 4 });
 });
+
+test('thousands separators are not read as decimals', () => {
+    const r = (v) => parseReply(`{"happened": true, "count": 1, "base": 5, "omega-pizdec": ${JSON.stringify(v)}}`).ml;
+    assert.equal(r('1,840'), 1840);
+    assert.equal(r('1 840 ml'), 1840);
+    assert.equal(r('1,840.5'), 1840.5);
+    assert.equal(r('12,5'), 12.5);
+    assert.equal(r('2 500,5 мл'), 2500.5);
+});

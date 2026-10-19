@@ -2,19 +2,30 @@
 // leaderboard deployment can read it. It carries both volumes (omega-pizdec and base), the nickname, a timestamp
 // against replays, and `owner`: SHA-256 of the local key, which proves the nickname is
 // yours without the key itself ever leaving the browser.
-const { subtle } = crypto;
+// WebCrypto's subtle API exists only in secure contexts (https or localhost). SillyTavern opened
+// over plain http on a LAN address has none, so callers check this before submitting.
+export const canSeal = () => Boolean(globalThis.crypto?.subtle);
 const ALG = { name: 'ECDH', namedCurve: 'P-256' };
 const enc = new TextEncoder();
 
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const origin = (url) => String(url || '').trim().replace(/\/+$/, '');
 
-export async function ownerHash(localKey) {
-    const digest = await subtle.digest('SHA-256', enc.encode(localKey));
+async function sha256hex(text) {
+    const digest = await crypto.subtle.digest('SHA-256', enc.encode(text));
     return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Private proof of ownership: travels only inside the sealed submission. */
+export const ownerHash = (localKey) => sha256hex(localKey);
+
+/** Public player id (what the server stores): safe for links, useless for submitting. */
+export async function publicId(localKey) {
+    return (await sha256hex(await ownerHash(localKey))).slice(0, 32);
+}
+
 async function seal(serverJwk, payload) {
+    const { subtle } = crypto;
     const server = await subtle.importKey('jwk', serverJwk, ALG, false, []);
     const eph = await subtle.generateKey(ALG, true, ['deriveBits']);
     const shared = await subtle.deriveBits({ name: 'ECDH', public: server }, eph.privateKey, 256);
@@ -30,6 +41,11 @@ async function seal(serverJwk, payload) {
 }
 
 export async function submit(url, { nick, omega, base, localKey }) {
+    if (!canSeal()) {
+        const err = new Error('Encryption is unavailable: open SillyTavern over https or localhost');
+        err.code = 'insecure';
+        throw err;
+    }
     const keyRes = await fetch(`${origin(url)}/api/key`);
     const keyJson = await keyRes.json().catch(() => ({}));
     if (!keyRes.ok || !keyJson.key) throw new Error(keyJson.error || `HTTP ${keyRes.status}`);
@@ -50,5 +66,5 @@ export async function submit(url, { nick, omega, base, localKey }) {
 }
 
 export async function boardUrl(url, localKey) {
-    return `${origin(url)}/?me=${await ownerHash(localKey)}`;
+    return canSeal() ? `${origin(url)}/?me=${await publicId(localKey)}` : origin(url);
 }

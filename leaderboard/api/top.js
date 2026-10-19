@@ -1,5 +1,5 @@
 import { redis, pipeline } from '../lib/redis.js';
-import { cors, idFromOwner, hashToObject } from '../lib/http.js';
+import { cors, isPublicId, hashToObject } from '../lib/http.js';
 import { boardOf, zkey, totalKey } from '../lib/boards.js';
 
 export default async function handler(req, res) {
@@ -15,7 +15,8 @@ export default async function handler(req, res) {
         for (let i = 0; i < flat.length; i += 2) ids.push(flat[i]);
 
         const users = ids.length ? await pipeline(ids.map((id) => ['HGETALL', `u:${id}`])) : [];
-        const meId = idFromOwner(req.query.me);
+        // ?me= carries the public id (never the owner fingerprint, which could be used to submit).
+        const meId = isPublicId(req.query.me) ? req.query.me : null;
         const rows = ids.map((id, i) => ({
             rank: i + 1,
             nick: hashToObject(users[i]).nick || 'anon',

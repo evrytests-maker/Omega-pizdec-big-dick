@@ -35,6 +35,7 @@ function plural(n, one, few, many) {
 const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+    del(k) { try { localStorage.removeItem(k); } catch { /* private mode */ } },
 };
 
 let lang = store.get('cm.lang') || (/^(ru|uk|be)/i.test(navigator.language) ? 'ru' : 'en');
@@ -49,13 +50,16 @@ let board = (() => {
 let data = null;
 let loadedAt = 0;
 
-// The extension opens this page with ?me=<fingerprint> so your row is highlighted.
-// Keep it locally and drop it from the address bar.
+// The extension opens this page with ?me=<public id> so your row is highlighted.
+// Keep it locally and drop it from the address bar. Only the 32-hex public id is accepted;
+// anything else (older links carried a fingerprint that could be used to submit) is discarded.
 (function captureMe() {
+    const isPublicId = (v) => /^[0-9a-f]{32}$/.test(v || '');
+    if (!isPublicId(store.get('cm.me'))) store.del('cm.me');
     const url = new URL(location.href);
     const me = url.searchParams.get('me');
-    if (me) {
-        store.set('cm.me', me);
+    if (me !== null) {
+        if (isPublicId(me)) store.set('cm.me', me);
         url.searchParams.delete('me');
         history.replaceState(null, '', url.pathname + url.search + url.hash);
     }

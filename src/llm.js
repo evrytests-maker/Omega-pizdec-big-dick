@@ -7,7 +7,13 @@
 const MAX_TOKENS = 600;
 const TIMEOUT_MS = 45000;
 
-const num = (v) => (typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.')));
+// "4,5" is a decimal comma; "1,840", "1 840" and "1,840.5" use thousands separators.
+function num(v) {
+    if (typeof v === 'number') return v;
+    let t = String(v ?? '').trim().replace(/[\s\u00a0\u202f]+(?=\d)/g, '');
+    t = /^-?\d+,\d{1,2}(?!\d)/.test(t) && !t.includes('.') ? t.replace(',', '.') : t.replace(/,/g, '');
+    return parseFloat(t);
+}
 
 // Tolerant reader: small models wrap JSON in prose or fences, quote numbers or add units.
 function parse(text) {

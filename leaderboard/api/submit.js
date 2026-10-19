@@ -6,8 +6,11 @@ import { zkey, totalKey } from '../lib/boards.js';
 const MAX_ML = 1e12;
 const MAX_SKEW_MS = 10 * 60 * 1000;
 
+// NFKC folds look-alike forms; \p{C} drops control and invisible format characters
+// (zero-width spaces and joiners), so "Victim" and "Vic\u200btim" can't coexist.
 const cleanNick = (s) => String(s ?? '')
-    .replace(/[\u0000-\u001f\u007f<>]/g, '')
+    .normalize('NFKC')
+    .replace(/[\p{C}<>]/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 24);
@@ -25,6 +28,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Could not decrypt the submission' });
     }
 
+    if (!msg || typeof msg !== 'object') return res.status(400).json({ error: 'Bad submission' });
+
     try {
         const id = idFromOwner(msg.owner);
         if (!id) return res.status(400).json({ error: 'Bad owner' });
@@ -38,10 +43,8 @@ export default async function handler(req, res) {
         const ts = Number(msg.ts);
         if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > MAX_SKEW_MS) return res.status(400).json({ error: 'Clock skew too large' });
 
-        const nick = cleanNick(msg.nick) || `anon-${id.slice(0, 4)}`;
-
-        const ok = await redis('SET', `rl:${id}`, '1', 'NX', 'EX', '30');
-        if (ok !== 'OK') return res.status(429).json({ error: 'Too fast, try again in 30 s' });
+        // Long enough that two anonymous players practically never collide.
+        const nick = cleanNick(msg.nick) || `anon-${id.slice(0, 10)}`;
 
         const [prevOmega, prevBase, prevNick, prevTs] = await pipeline([
             ['HGET', `u:${id}`, 'omega'],
@@ -49,8 +52,12 @@ export default async function handler(req, res) {
             ['HGET', `u:${id}`, 'nick'],
             ['HGET', `u:${id}`, 'ts'],
         ]);
-        // A captured envelope can't be replayed over a newer result.
+        // A captured envelope can't be replayed over a newer result. Checked before the rate
+        // limit so a rejected replay doesn't lock the real player out for 30 s.
         if (prevTs && ts <= Number(prevTs)) return res.status(409).json({ error: 'Stale submission' });
+
+        const ok = await redis('SET', `rl:${id}`, '1', 'NX', 'EX', '30');
+        if (ok !== 'OK') return res.status(429).json({ error: 'Too fast, try again in 30 s' });
 
         // A nickname belongs to whoever claimed it first.
         const nickKey = `nick:${nick.toLowerCase()}`;

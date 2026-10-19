@@ -13,6 +13,12 @@ export function idFromOwner(owner) {
     return createHash('sha256').update(owner).digest('hex').slice(0, 32);
 }
 
+// The public player id: a hash of the owner fingerprint. Safe to put in links (?me=) because,
+// unlike `owner`, it can't be used to submit.
+export function isPublicId(v) {
+    return typeof v === 'string' && /^[0-9a-f]{32}$/.test(v);
+}
+
 export function hashToObject(flat) {
     const o = {};
     for (let i = 0; i + 1 < (flat?.length || 0); i += 2) o[flat[i]] = flat[i + 1];
