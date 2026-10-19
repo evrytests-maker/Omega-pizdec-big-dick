@@ -127,9 +127,14 @@ await page.locator('#send_textarea').press('Enter');
 await page.waitForFunction((n) => SillyTavern.getContext().chat.length >= n + 2 && !SillyTavern.getContext().chat.at(-1).is_user, nBefore, { timeout: 30000 });
 await page.waitForFunction(() => document.querySelector('.cm-jar-level').style.transform.includes('20px'), null, { timeout: 15000 });
 check('jar fills up to the rim before overflowing', true);
-await page.waitForTimeout(800);
-await page.screenshot({ path: SP + '/jar-1-overflow.png', clip: { x: 900, y: 40, width: 380, height: 520 } });
-check('streams run down the walls', await page.evaluate(() => document.querySelector('.cm-jar-stage').classList.contains('cm-overflowing')));
+const clipJar = async () => { const b = await page.locator('.cm-jar-stage').boundingBox(); return { x: b.x - 30, y: b.y - 20, width: b.width + 60, height: b.height + 40 }; };
+await page.waitForFunction(() => document.querySelector('.cm-jar-stage').classList.contains('cm-overflowing'), null, { timeout: 5000 });
+check('streams run down the walls', true);
+for (const [i, ms] of [[1, 500], [2, 800], [3, 800], [4, 800], [5, 700]]) {
+  await page.waitForTimeout(ms);
+  await page.screenshot({ path: SP + `/goo-${i}.png`, clip: await clipJar() });
+}
+check('sticky residue after the swap', await page.evaluate(() => document.querySelector('.cm-jar-stage').classList.contains('cm-residue')));
 await page.waitForTimeout(2600);
 await page.screenshot({ path: SP + '/jar-2-after.png', clip: { x: 900, y: 40, width: 380, height: 520 } });
 const meta = await page.textContent('.cm-jar-meta');

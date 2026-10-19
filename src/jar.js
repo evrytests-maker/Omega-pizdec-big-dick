@@ -14,6 +14,25 @@ const INSIDE = 'M39 25 h42 v3 c0 7 6 10 12 14 c7 4 10 10 10 19 v82 c0 8 -6 13 -1
 const STREAM_L = 'M35 21 c0 6 -6 9 -12 13 c-8 5 -13 12 -13 22 v84 c0 9 4 15 10 18';
 const STREAM_R = 'M85 21 c0 6 6 9 12 13 c8 5 13 12 13 22 v84 c0 9 -4 15 -10 18';
 
+// Overflow goo: a bulging dome over the rim, slow drips down the front glass that end in
+// swollen beads, a drop that stretches under the jar and splats into a lumpy puddle.
+const DOME = 'M30 23 C29 12 41 4 52 6 C56 2 66 3 69 7 C80 5 92 12 90 23 Z';
+const DRIPS = [
+    { d: 'M45 24 C44 38 47 56 45 76', w: 6, bead: [45, 78, 4.6], dur: 1.9, delay: 0.15 },
+    { d: 'M71 24 C72 44 69 78 71 114', w: 4.6, bead: [71, 116, 3.6], dur: 2.3, delay: 0.35 },
+    { d: 'M58 24 C58 29 59 33 58 37', w: 7, bead: [58, 40, 5.2], dur: 0.9, delay: 0.05 },
+    { d: 'M86 26 C88 34 85 44 87 54', w: 3.4, bead: [87, 56, 2.8], dur: 1.4, delay: 0.6 },
+];
+const PUDDLE = 'M10 166 C8 160 24 159 36 161 C44 158 54 161 62 160 C74 157 86 161 96 159 C110 158 115 164 108 168 C100 172 84 169 72 171 C60 173 46 169 34 171 C20 173 11 171 10 166 Z';
+
+const dripsSvg = DRIPS.map((g, i) => `
+        <g class="cm-drip" style="--d:${g.dur}s;--dl:${g.delay}s">
+            <path class="cm-drip-line" d="${g.d}" pathLength="100" stroke-width="${g.w}"/>
+            <path class="cm-drip-core" d="${g.d}" pathLength="100" stroke-width="${(g.w * 0.38).toFixed(1)}"/>
+            <circle class="cm-drip-bead" cx="${g.bead[0]}" cy="${g.bead[1]}" r="${g.bead[2]}"/>
+            <circle class="cm-drip-gloss" cx="${g.bead[0] - g.bead[2] * 0.35}" cy="${g.bead[1] - g.bead[2] * 0.35}" r="${(g.bead[2] * 0.3).toFixed(1)}"/>
+        </g>`).join('');
+
 export const JAR_SVG = `
 <svg class="cm-jar-svg" viewBox="0 0 120 172" aria-hidden="true">
     <defs>
@@ -24,7 +43,12 @@ export const JAR_SVG = `
         </linearGradient>
     </defs>
     <ellipse class="cm-jar-shadow" cx="60" cy="165" rx="44" ry="3.5"/>
-    <ellipse class="cm-jar-puddle" cx="60" cy="165" rx="52" ry="4.5"/>
+    <g class="cm-goo-puddle">
+        <path class="cm-goo-fill" d="${PUDDLE}"/>
+        <ellipse class="cm-goo-shine" cx="40" cy="164" rx="12" ry="1.4"/>
+        <ellipse class="cm-goo-shine" cx="82" cy="163" rx="7" ry="1"/>
+    </g>
+    <ellipse class="cm-goo-splash" cx="34" cy="166" rx="9" ry="2.4"/>
     <path class="cm-jar-glass" d="${BODY}"/>
     <g clip-path="url(#cm-jar-clip)">
         <g class="cm-jar-level">
@@ -38,6 +62,17 @@ export const JAR_SVG = `
     <rect class="cm-jar-rim" x="32" y="17" width="56" height="7" rx="3.5"/>
     <rect class="cm-jar-shine" x="21" y="54" width="5" height="84" rx="2.5"/>
     <rect class="cm-jar-shine cm-jar-shine-sm" x="95" y="62" width="3" height="40" rx="1.5"/>
+    <g class="cm-goo-dome">
+        <path class="cm-goo-fill" d="${DOME}"/>
+        <ellipse class="cm-goo-shine" cx="47" cy="11" rx="8" ry="2"/>
+        <circle class="cm-goo-shine" cx="70" cy="10" r="1.3"/>
+    </g>
+    <g class="cm-goo-drips">${dripsSvg}
+    </g>
+    <g class="cm-goo-hang">
+        <path class="cm-goo-fill cm-goo-string" d="M31 160 C30 163 33 163 32 166 C31 168 35 168 34 160 Z"/>
+        <circle class="cm-goo-fill cm-goo-fall" cx="33" cy="166" r="2.6"/>
+    </g>
 </svg>`;
 
 export const MINI_JAR_SVG = `
@@ -109,12 +144,16 @@ export class Jar {
         this.setLevel(1, false, true);
         await wait(650);
         this.stage.classList.add('cm-overflowing');
-        await wait(1100);
+        await wait(2700);
         this.stage.classList.add('cm-jar-swap');
         await wait(320);
         this.renderShelf(b.jars);
         this.setLevel(0, true);
+        // Sticky residue lingers on the glass and the shelf for a moment.
         this.stage.classList.remove('cm-overflowing', 'cm-jar-swap');
+        this.stage.classList.add('cm-residue');
+        clearTimeout(this.residueTimer);
+        this.residueTimer = setTimeout(() => this.stage.classList.remove('cm-residue'), 4200);
         await wait(60);
         this.setLevel(b.frac > 0 ? Math.max(b.frac, MIN_FILM) : 0);
         this.shown = { total, capacity };

@@ -14,6 +14,7 @@
     --cm-milk-top: #fffdf6;
     --cm-milk-bottom: #e4dac4;
     --cm-milk-edge: rgba(150, 132, 98, 0.45);
+    --cm-goo: #f1ead2;
     --cm-glass-line: rgba(60, 60, 67, 0.32);
 
     position: fixed;
@@ -46,6 +47,7 @@
         --cm-milk-top: #fbf8f0;
         --cm-milk-bottom: #d9cfba;
         --cm-milk-edge: rgba(255, 250, 235, 0.35);
+        --cm-goo: #ece3c6;
         --cm-glass-line: rgba(235, 235, 245, 0.42);
     }
 }
@@ -62,6 +64,7 @@
     --cm-milk-top: #fbf8f0;
     --cm-milk-bottom: #d9cfba;
     --cm-milk-edge: rgba(255, 250, 235, 0.35);
+    --cm-goo: #ece3c6;
     --cm-glass-line: rgba(235, 235, 245, 0.42);
 }
 
@@ -263,39 +266,142 @@
     to { translate: -60px 0; }
 }
 
-/* overflow: streams run down both walls, a puddle spreads under the jar */
+/* ── overflow goo ──
+   Viscous on purpose: slow start, sagging drips with swollen beads, a lumpy puddle,
+   and a sticky residue that outlives the jar swap. */
+#cm-root .cm-jar-svg { --cm-goo-ease: cubic-bezier(0.62, 0.02, 0.28, 1); }
+
+#cm-root .cm-goo-fill {
+    fill: url(#cm-milk-grad);
+    stroke: var(--cm-milk-edge);
+    stroke-width: 0.8;
+}
+
+#cm-root .cm-goo-shine { fill: #fff; opacity: 0.7; stroke: none; }
+
 #cm-root .cm-jar-stream {
     fill: none;
-    stroke: var(--cm-milk-top);
-    stroke-width: 3.6;
+    stroke: var(--cm-goo);
+    stroke-width: 4.6;
     stroke-linecap: round;
     stroke-dasharray: 100 100;
     stroke-dashoffset: 100;
     opacity: 0;
-    filter: drop-shadow(0 0 0.6px var(--cm-milk-edge));
+    filter: drop-shadow(0 0 0.7px var(--cm-milk-edge));
 }
 
-#cm-root .cm-jar-puddle {
-    fill: var(--cm-milk-bottom);
-    transform-origin: 60px 165px;
-    transform: scaleX(0);
+#cm-root .cm-goo-dome,
+#cm-root .cm-goo-drips,
+#cm-root .cm-goo-hang,
+#cm-root .cm-goo-puddle,
+#cm-root .cm-goo-splash { opacity: 0; }
+
+#cm-root .cm-goo-dome,
+#cm-root .cm-goo-puddle,
+#cm-root .cm-goo-string,
+#cm-root .cm-goo-fall,
+#cm-root .cm-goo-splash,
+#cm-root .cm-drip-bead,
+#cm-root .cm-drip-gloss { transform-box: fill-box; }
+
+#cm-root .cm-goo-dome { transform-origin: 50% 100%; }
+#cm-root .cm-goo-puddle { transform-origin: 50% 50%; }
+
+#cm-root .cm-drip-line,
+#cm-root .cm-drip-core {
     opacity: 0;
+    fill: none;
+    stroke-linecap: round;
+    stroke-dasharray: 100 100;
+    stroke-dashoffset: 100;
 }
 
-#cm-root .cm-overflowing .cm-jar-stream { animation: cm-stream 1.1s var(--cm-ease) forwards; }
-#cm-root .cm-overflowing .cm-jar-stream-r { animation-delay: 0.08s; }
-#cm-root .cm-overflowing .cm-jar-puddle { animation: cm-puddle 1.3s var(--cm-ease) 0.45s forwards; }
-#cm-root .cm-overflowing .cm-wave { animation-duration: 1.2s; }
+#cm-root .cm-drip-line { stroke: var(--cm-goo); filter: drop-shadow(0.6px 0.8px 0.7px rgba(105, 84, 44, 0.6)) drop-shadow(-0.4px 0 0.4px rgba(105, 84, 44, 0.35)); }
+#cm-root .cm-drip-core { stroke: #fff; --o: 0.55; }
+#cm-root .cm-drip-bead { fill: var(--cm-goo); stroke: rgba(105, 84, 44, 0.55); stroke-width: 0.8; filter: drop-shadow(0.8px 1.2px 0.8px rgba(80, 62, 30, 0.45)); transform-origin: 50% 20%; transform: scale(0); }
+#cm-root .cm-drip-gloss { fill: #fff; opacity: 0; }
+
+/* running */
+#cm-root .cm-overflowing .cm-goo-dome { animation: cm-dome 2.7s var(--cm-goo-ease) forwards; }
+#cm-root .cm-overflowing .cm-jar-stream { animation: cm-stream 2.4s var(--cm-goo-ease) 0.25s forwards; }
+#cm-root .cm-overflowing .cm-jar-stream-r { animation-delay: 0.5s; animation-duration: 2.1s; }
+#cm-root .cm-overflowing .cm-goo-drips,
+#cm-root .cm-residue .cm-goo-drips { opacity: 1; }
+#cm-root .cm-overflowing .cm-drip-line,
+#cm-root .cm-overflowing .cm-drip-core { animation: cm-ooze var(--d) var(--cm-goo-ease) calc(var(--dl) + 0.3s) forwards; }
+#cm-root .cm-overflowing .cm-drip-bead { animation: cm-bead 0.9s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--d) + var(--dl) + 0.15s) forwards; }
+#cm-root .cm-overflowing .cm-drip-gloss { animation: cm-fade-in 0.3s calc(var(--d) + var(--dl) + 0.4s) forwards; }
+#cm-root .cm-overflowing .cm-goo-hang { opacity: 1; }
+#cm-root .cm-overflowing .cm-goo-string { transform-origin: 50% 0; transform: scaleY(0); animation: cm-string 1.5s var(--cm-goo-ease) 1s forwards; }
+#cm-root .cm-overflowing .cm-goo-fall { opacity: 0; animation: cm-fall 0.5s cubic-bezier(0.5, 0, 1, 1) 2.15s forwards; }
+#cm-root .cm-overflowing .cm-goo-puddle { animation: cm-puddle 2.2s var(--cm-goo-ease) 0.9s forwards; }
+#cm-root .cm-overflowing .cm-goo-splash { transform-origin: 50% 50%; animation: cm-splash 0.6s ease-out 2.6s forwards; }
+#cm-root .cm-overflowing .cm-wave { animation-duration: 1.4s; }
+
+/* sticky residue after the swap */
+#cm-root .cm-residue .cm-drip-line,
+#cm-root .cm-residue .cm-drip-core { stroke-dashoffset: 0; animation: cm-residue 4s ease-in forwards; }
+#cm-root .cm-residue .cm-drip-bead { transform: scale(1); animation: cm-residue 4s ease-in forwards; }
+#cm-root .cm-residue .cm-goo-puddle { opacity: 0.85; transform: none; animation: cm-residue 4s ease-in 0.4s forwards; }
+
+@keyframes cm-dome {
+    0% { opacity: 0; transform: scale(0.9, 0); }
+    25% { opacity: 1; transform: scale(1.02, 1.25); }
+    40% { transform: scale(0.97, 0.85); }
+    55% { transform: scale(1.03, 1.12); }
+    75% { transform: scale(1, 0.95); }
+    100% { opacity: 1; transform: scale(1, 1); }
+}
 
 @keyframes cm-stream {
-    0% { stroke-dashoffset: 100; opacity: 1; }
-    70% { stroke-dashoffset: 0; opacity: 1; }
-    100% { stroke-dashoffset: -40; opacity: 0.85; }
+    0% { stroke-dashoffset: 100; opacity: 0; }
+    3% { opacity: 1; }
+    100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes cm-ooze {
+    0% { stroke-dashoffset: 100; opacity: 0; }
+    3% { opacity: var(--o, 1); }
+    30% { stroke-dashoffset: 82; }
+    60% { stroke-dashoffset: 40; }
+    100% { stroke-dashoffset: 0; opacity: var(--o, 1); }
+}
+
+@keyframes cm-bead {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.18, 1.3); }
+    100% { transform: scale(1, 1.08); }
+}
+
+@keyframes cm-fade-in { to { opacity: 0.85; } }
+
+@keyframes cm-string {
+    0% { transform: scaleY(0); }
+    70% { transform: scaleY(1.6); }
+    85% { transform: scaleY(2.1); }
+    100% { transform: scaleY(0.6); }
+}
+
+@keyframes cm-fall {
+    0% { opacity: 1; transform: translateY(-2px) scale(0.8, 1.2); }
+    100% { opacity: 1; transform: translateY(3px) scale(1.4, 0.4); }
 }
 
 @keyframes cm-puddle {
-    from { transform: scaleX(0.1); opacity: 0.9; }
-    to { transform: scaleX(1); opacity: 0.75; }
+    0% { opacity: 0.95; transform: scale(0.08, 0.6); }
+    55% { transform: scale(0.82, 1.15); }
+    75% { transform: scale(1.04, 0.92); }
+    100% { opacity: 0.95; transform: scale(1, 1); }
+}
+
+@keyframes cm-splash {
+    0% { opacity: 0.9; transform: scale(0.3); fill: var(--cm-goo); }
+    100% { opacity: 0; transform: scale(1.8, 1.4); fill: var(--cm-goo); }
+}
+
+@keyframes cm-residue {
+    from { opacity: 0.75; }
+    to { opacity: 0; }
 }
 
 /* the full jar slides off to the shelf, a fresh one rises in its place */
