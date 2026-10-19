@@ -1,6 +1,6 @@
 // Trigger contracts in the ACE-SKILL style: every pattern needs explicit positive,
 // negative and near-miss cases, evaluated with JavaScript RegExp semantics.
-// Run: node --test tests/
+// Run: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
