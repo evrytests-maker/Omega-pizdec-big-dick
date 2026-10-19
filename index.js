@@ -21,7 +21,7 @@ const DEFAULTS = {
     scanUser: false,
     // Connection Manager profile id for the OOC model; empty = regex + offline estimate.
     profileId: '',
-    leaderboardUrl: '',
+    leaderboardUrl: 'https://omega-pizdec.vercel.app',
     nickname: '',
     // charKey -> { name, chats: { chatId: ml } }
     chars: {},
