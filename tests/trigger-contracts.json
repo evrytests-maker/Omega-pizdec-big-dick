@@ -1,0 +1,98 @@
+{
+    "en.cum": {
+        "match": ["He cums hard.", "Cum dripped down her thigh", "he was cumming\nagain", "She made him cum!"],
+        "notMatch": ["graduated cum laude", "a pinch of cumin", "cumulative score", "cumbersome armour"]
+    },
+    "en.ejaculate": {
+        "match": ["He ejaculated with a groan", "the ejaculation was immense"],
+        "notMatch": ["she exclaimed loudly"]
+    },
+    "en.came": {
+        "match": ["He came inside her with a groan", "came all over you", "and came deep inside", "He came hard."],
+        "notMatch": ["He came inside her house", "He came into the room", "Hard times came", "he came hard times ahead", "came in"]
+    },
+    "en.climax": {
+        "match": ["He climaxed deep inside her", "climaxing inside him"],
+        "notMatch": ["the story's climax", "climaxed in the third act"]
+    },
+    "en.spurt": {
+        "match": ["spurting thick and hot", "it spurted inside"],
+        "notMatch": ["a spurt of speed", "blood spurted from the wound"]
+    },
+    "en.semen": {
+        "match": ["Semen dripped", "covered in semen."],
+        "notMatch": ["Captain Semenov", "semenovsky regiment"]
+    },
+    "en.spunk": {
+        "match": ["his spunk", "Spunk everywhere"],
+        "notMatch": ["a spunky girl", "spunkiness"]
+    },
+    "en.jizz": {
+        "match": ["jizzed on the sheets", "jizz"],
+        "notMatch": ["jazz club"]
+    },
+    "en.creampie": {
+        "match": ["a messy creampie", "cream-pie"],
+        "notMatch": ["a slice of cream cake"]
+    },
+    "en.seed": {
+        "match": ["his seed filled her", "Alpha's seed", "hot seed spilled"],
+        "notMatch": ["planted a seed of doubt", "seeded the tournament", "his seedling"]
+    },
+    "en.fill": {
+        "match": ["He filled her up", "pumped him full of cum", "flooding her with his seed"],
+        "notMatch": ["filled her up with tea", "filled him in on the plan", "pumped him full of lead", "fill her cup"]
+    },
+    "en.load": {
+        "match": ["shot his load", "He blew his hot load", "emptied his heavy load"],
+        "notMatch": ["loaded into the truck", "a load of laundry", "the truck dumped its loads of gravel"]
+    },
+    "en.knot": {
+        "match": ["his knot swelled", "The alpha's knot locked them together", "He knotted her."],
+        "notMatch": ["a knot in her stomach", "tied the knot", "knotted her hair", "knots per hour"]
+    },
+    "en.release": {
+        "match": ["released his seed", "releasing deep inside", "released inside her."],
+        "notMatch": ["released the prisoner", "released inside her house"]
+    },
+    "ru.konchit": {
+        "match": ["Он кончил, тяжело дыша", "Кончи в меня!", "кончив, он рухнул", "ты кончишь"],
+        "notMatch": ["Он закончил работу", "кончик ножа", "деньги кончились", "покончил с этим", "конченый"]
+    },
+    "ru.konchat": {
+        "match": ["он кончает", "Кончаю!", "кончая снова"],
+        "notMatch": ["уроки кончаются", "заканчивает отчёт"]
+    },
+    "ru.izlit": {
+        "match": ["он излился в неё", "Излилась горячая волна", "изливаясь глубоко"],
+        "notMatch": ["излишне громко", "излишек"]
+    },
+    "ru.sperm": {
+        "match": ["сперма стекала", "Спермой залило простыни", "в сперме"],
+        "notMatch": ["спермацетовый кит", "сперматозоид под микроскопом"]
+    },
+    "ru.semya": {
+        "match": ["его семя", "Семенем наполнил", "капля семени"],
+        "notMatch": ["Семенов пришёл", "семья ужинала", "семенил по коридору", "семечки"]
+    },
+    "ru.ejac": {
+        "match": ["эякуляция была долгой"],
+        "notMatch": ["экспедиция"]
+    },
+    "ru.malafya": {
+        "match": ["малафья повсюду"],
+        "notMatch": ["малахит"]
+    },
+    "ru.creampie": {
+        "match": ["настоящий кремпай"],
+        "notMatch": ["кремовый пирог"]
+    },
+    "ru.fill": {
+        "match": ["наполнил её до краёв", "Заливал его изнутри", "наполняя тебя семенем"],
+        "notMatch": ["наполнил его бокал", "заливал её водой", "наполнил их кружки"]
+    },
+    "ru.knot": {
+        "match": ["его узел набух", "Узлом вошёл", "узел разбух внутри", "сцепились узлом"],
+        "notMatch": ["завязал узел на верёвке", "железнодорожный узел", "узелок на память"]
+    }
+}

@@ -14,6 +14,18 @@ A SillyTavern extension that measures, with a straight face, how many litres a c
 3. **Offline fallback.** With no model configured, or if the call fails, a heuristic estimate is used.
 4. Results are stored per chat in chat metadata, keyed by message text. Swipes, edits and deletions are handled automatically.
 
+## Regex triggers / Регексы
+
+Triggers are designed and verified with [ACE-SKILL](https://github.com/evrytests-maker/ace-skill) (`key-regex-test` workflow):
+JavaScript semantics, Unicode letter boundaries on both sides (JS `\b` does not work for Cyrillic), and for every pattern
+explicit positive, negative and near-miss cases in `tests/trigger-contracts.json` (`cum laude`, `закончил`, `кончик`,
+`Семенов`, `tied the knot`, `железнодорожный узел` …).
+
+```bash
+npm test                                        # node:test, no dependencies
+node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (run `npm ci` there first)
+```
+
 ## Install / Установка
 
 Extensions → Install extension → `https://github.com/evrytests-maker/Omega-pizdec-big-dick`

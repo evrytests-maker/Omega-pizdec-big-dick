@@ -1,52 +1,60 @@
 // Regex triggers and the offline fallback estimator.
-// JS \b does not understand Cyrillic, so boundaries use Unicode letter lookarounds.
+// Boundaries follow ACE-SKILL (references/keys-and-regex.md): JS \b does not
+// understand Cyrillic, so both edges use Unicode letter/number lookarounds.
+// Case-insensitive on purpose: prose capitalises at sentence start.
+// Every pattern has positive, negative and near-miss cases in tests/trigger-contracts.json.
 
-const word = (s) => new RegExp(`(?<!\\p{L})(?:${s})`, 'iu');
+const L = '[\\p{L}\\p{N}_]';
+const word = (s) => new RegExp(`(?<!${L})(?:${s})`, 'iu');
 
-const TRIGGERS = [
+const PRON_EN = '(?:her|him|you|me|them)';
+const PRON_RU = '(?:её|ее|его|тебя|меня|их)';
+const END = `(?!${L})`;
+const NOT_PLACE = '(?!\\s+(?:house|room|home|car|office|apartment|flat|tent|place))';
+
+export const TRIGGER_SOURCES = {
     // English
-    'cum(?:s|ming|med)?(?!\\p{L})',
-    'ejaculat',
-    'came\\s+(?:inside|in\\s+(?:her|him|you|me|them)|all\\s+over|deep|hard)',
-    'climax(?:es|ed|ing)?\\s+(?:inside|deep)',
-    'spurt',
-    'semen',
-    'spunk',
-    'jizz',
-    'creampie',
-    'cream(?:s|ed|ing)?\\s+(?:her|him|you|me|them|inside)',
-    'seed(?:\\s+\\p{L}+){0,3}\\s+(?:fill|spill|pump|flood|paint|coat)',
-    '(?:fill|pump|flood)(?:s|ed|ing)?\\s+(?:her|him|you|me|them)\\s+(?:up|full|with)',
-    'shoot(?:s|ing)?\\s+(?:his|her|their|a)?\\s*load',
-    'loads?\\s+(?:inside|into|deep)',
-    'knot(?:s|ted|ting)?(?!\\p{L})',
-    'releas(?:e|es|ed|ing)\\s+(?:inside|deep|his\\s+seed)',
+    'en.cum': `cum(?:s|ming|med)?${END}(?!\\s+laude)`,
+    'en.ejaculate': 'ejaculat',
+    'en.came': `came\\s+(?:inside\\s+${PRON_EN}${END}${NOT_PLACE}|all\\s+over\\s+${PRON_EN}|deep\\s+inside|hard${END}(?!\\s+(?:times?|news|way|work|choice)))`,
+    'en.climax': `climax(?:es|ed|ing)?\\s+(?:deep\\s+)?inside\\s+${PRON_EN}`,
+    'en.spurt': `spurt(?:s|ed|ing)?\\s+(?:inside|into|deep|thick|rope)`,
+    'en.semen': `semen${END}`,
+    'en.spunk': `spunk${END}`,
+    'en.jizz': 'jizz',
+    'en.creampie': 'cream-?pie',
+    'en.seed': `(?:his|hot|thick|alpha'?s?)\\s+seed${END}`,
+    'en.fill': `(?:fill|pump|flood)(?:s|ed|ing)?\\s+${PRON_EN}\\s+(?:up${END}(?!\\s+(?:a|the|with\\s+(?:tea|coffee|food|water|gas)))|full\\s+of\\s+(?:cum|seed)|with\\s+(?:his\\s+)?(?:cum|seed))`,
+    'en.load': `(?:shoot|shot|shoots|shooting|blow|blew|blows|dump|dumped|dumps|empt\\p{L}*|unload\\p{L}*)\\s+(?:his|their|its|a)\\s+(?:hot\\s+|thick\\s+|heavy\\s+)?load${END}`,
+    'en.knot': `(?:(?:his|their|the|alpha'?s?)\\s+knot(?:\\s+\\p{L}+)?\\s+(?:swell|lock|pop|push|slid|catch|tie|inflat|expand)|knot(?:ted|ting|s)\\s+${PRON_EN}${END}(?!\\s+(?:hair|scarf|rope|tie)))`,
+    'en.release': `releas(?:e|es|ed|ing)\\s+(?:his\\s+seed|deep\\s+inside|inside\\s+${PRON_EN}${END}${NOT_PLACE})`,
     // Russian
-    'кончи(?:л|ла|ли|ть|т|в|м|те|шь)?(?!\\p{L})',
-    'конча(?:ет|ют|ю|я|ешь|ть)',
-    'изли(?:л|ла|лся|лось|вает|вая|ть)',
-    'сперм',
-    'семен(?:ем|и)',
-    'сем(?:я|ени)(?!\\p{L})',
-    'эякул',
-    'малаф',
-    'кремпа',
-    'наполн\\p{L}*\\s+(?:её|ее|его|тебя|меня|их)',
-    'залива(?:ет|я|л)\\s+(?:её|ее|его|тебя|меня|их)',
-    'узл(?:ом|а|е)(?!\\p{L})|узел(?!\\p{L})',
-].map(word);
+    'ru.konchit': `кончи(?:л|ла|ли|ть|т|в|м|те|шь)?${END}`,
+    'ru.konchat': `конча(?:ет|ют|ю|я|ешь|ть)${END}`,
+    'ru.izlit': `изли(?:л|ла|лся|лась|лось|вает|вается|вая|ваясь|ть|ться)${END}`,
+    'ru.sperm': `сперм(?:а|ы|е|у|ой|ою)${END}`,
+    'ru.semya': `сем(?:я|ени|енем)${END}`,
+    'ru.ejac': 'эякул',
+    'ru.malafya': 'малаф',
+    'ru.creampie': 'кремпа',
+    'ru.fill': `(?:наполн|залив|зали)\\p{L}*\\s+${PRON_RU}\\s+(?:до\\s+кра[её]в|до\\s+отказа|изнутри|собой|сем|сперм)`,
+    'ru.knot': `(?:узел|узл(?:ом|а|е))(?:\\s+\\p{L}+){0,2}\\s+(?:набух|разбух|раздул|вош[её]л|заблок|запер|сцеп|увелич|внутри)|сцепил(?:ись|ся|ась)\\s+узлом`,
+};
+
+const TRIGGERS = Object.values(TRIGGER_SOURCES).map(word);
 
 const OMEGAVERSE = [
     'omega\\s?verse',
     'омегаверс',
-    'knot(?:s|ted|ting)?(?!\\p{L})',
-    'rut(?!\\p{L})',
+    `knot(?:s|ted|ting)?${END}`,
+    `rut${END}`,
     'течк',
-    'гон(?:е|а)?(?!\\p{L})',
-    'узл(?:ом|а|е)(?!\\p{L})|узел(?!\\p{L})',
+    `гон(?:е|а)?${END}`,
+    `узл(?:ом|а|е)${END}|узел${END}`,
 ].map(word);
 
 const ALPHA_OMEGA = word('alpha|omega|альф|омег');
+export { word };
 
 const INTENSITY = word(
     'flood|gallon|bucket|overflow|bulg|inflat|endless|torrent|gush|rope after rope|' +
