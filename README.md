@@ -28,8 +28,8 @@ node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (
 
 ### End-to-end in real SillyTavern
 
-`tests/e2e/` drives a real SillyTavern build with Playwright (30 checks: install, settings UI, regex → OOC call,
-omegaverse context, swipes/deletes, reload persistence, offline fallback, leaderboard submit, Liquid Glass on/off).
+`tests/e2e/` drives a real SillyTavern build with Playwright (36 checks: install, settings UI, regex → OOC call,
+omegaverse context, swipes/deletes, reload persistence, offline fallback, leaderboard submit, Liquid Glass on/off, jar overflow).
 
 ```bash
 node tests/e2e/mockllm.mjs /tmp/llm.log &                 # OpenAI-compatible mock (RP + OOC), :5100
@@ -75,6 +75,11 @@ API:
 - `/` is the public leaderboard page.
 
 ## Appearance
+
+**The jar.** The card shows the volume as a glass jar of milky liquid with a moving surface. Jar size is a setting
+(0.5 / 1 / **3** / 10 L; default is the classic three-litre jar). When a measurement goes past the brim the jar overflows:
+the liquid rises over the rim and runs down the walls, the full jar moves to the shelf, and a fresh jar fills with the
+remainder. The pill carries a mini jar with the current level.
 
 **Liquid Glass** (on by default): refraction of the backdrop through an SVG displacement filter (Chromium), specular rim
 and a highlight that follows the pointer. Safari/Firefox fall back to frosted glass. Turn it off for the classic frosted look.

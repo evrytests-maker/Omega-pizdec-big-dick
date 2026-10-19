@@ -1,6 +1,7 @@
 import { triggers, looksOmegaverse, heuristicMl } from './src/detect.js';
 import { measure, ping } from './src/llm.js';
 import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS, QUIPS } from './src/i18n.js';
+import { Jar, JAR_SVG, MINI_JAR_SVG, split } from './src/jar.js';
 
 const MODULE = 'cumometer';
 const LS_API_KEY = 'cumometer.apiKey';
@@ -14,6 +15,7 @@ const DEFAULTS = {
     theme: 'auto',
     mode: 'hybrid',
     liquidGlass: true,
+    jarSize: 3000,
     scanUser: false,
     provider: 'openai',
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -252,9 +254,9 @@ function compare(ml, lang) {
 
 // ───────────────────────── UI ─────────────────────────
 
-const DROP_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.7c-.3 0-.6.2-.8.4C9.4 5.5 5.5 10.6 5.5 14.6a6.5 6.5 0 0 0 13 0c0-4-3.9-9.1-5.7-11.5-.2-.2-.5-.4-.8-.4Z"/></svg>';
-
 let root = null;
+let jar = null;
+let jarChatId = null;
 let shownTotal = 0;
 let animFrame = 0;
 let toastTimer = 0;
@@ -294,7 +296,7 @@ function buildPill() {
     root.id = 'cm-root';
     root.innerHTML = `${LIQUID_FILTER}
         <button class="cm-pill" type="button" aria-expanded="false">
-            <span class="cm-drop">${DROP_SVG}</span>
+            <span class="cm-drop">${MINI_JAR_SVG}</span>
             <span class="cm-pill-value">0</span><span class="cm-pill-unit"></span>
         </button>
         <div class="cm-toast" role="status" aria-live="polite">
@@ -302,11 +304,17 @@ function buildPill() {
             <div class="cm-toast-note"></div>
         </div>
         <div class="cm-card" hidden>
-            <div class="cm-eyebrow cm-l-thisChat"></div>
-            <div class="cm-hero"><span class="cm-hero-value">0</span><span class="cm-hero-unit"></span></div>
-            <div class="cm-compare"></div>
-            <div class="cm-progress"><div class="cm-progress-fill"></div></div>
-            <div class="cm-progress-label"></div>
+            <div class="cm-top">
+                <div class="cm-top-text">
+                    <div class="cm-eyebrow cm-l-thisChat"></div>
+                    <div class="cm-hero"><span class="cm-hero-value">0</span><span class="cm-hero-unit"></span></div>
+                    <div class="cm-compare"></div>
+                    <div class="cm-jar-meta"></div>
+                    <div class="cm-jar-shelf" hidden></div>
+                </div>
+                <div class="cm-jar-stage">${JAR_SVG}</div>
+            </div>
+            <div class="cm-ach"></div>
             <dl class="cm-rows">
                 <div><dt class="cm-l-allTime"></dt><dd class="cm-all"></dd></div>
                 <div><dt class="cm-l-episodes"></dt><dd class="cm-eps"></dd></div>
@@ -319,6 +327,7 @@ function buildPill() {
             </div>
         </div>`;
     document.body.appendChild(root);
+    jar = new Jar(root.querySelector('.cm-jar-stage'), root.querySelector('.cm-jar-shelf'));
 
     const pill = root.querySelector('.cm-pill');
     const card = root.querySelector('.cm-card');
@@ -391,12 +400,19 @@ function refresh() {
     root.querySelector('.cm-all').textContent = fmtStr(charTotal(main.key), L);
     root.querySelector('.cm-eps').textContent = String(stats.episodes);
 
+    // Jar: animate only within one chat; switching chats snaps to the new level.
+    const capacity = Number(s.jarSize) || DEFAULTS.jarSize;
+    const chatId = ctx().getCurrentChatId?.() || null;
+    jar.set(stats.total, capacity, { animate: chatId === jarChatId });
+    jarChatId = chatId;
+    const part = split(stats.total, capacity);
+    root.querySelector('.cm-jar-meta').textContent = `${L.jar} ${part.jars + 1} · ${fmtStr(part.rest, L)} / ${fmtStr(capacity, L)}`;
+    const mini = root.querySelector('.cm-mini-fill');
+    mini.setAttribute('y', String(15.6 - (part.frac > 0 ? Math.max(part.frac, 0.08) : 0) * 13));
+
     const next = ACHIEVEMENTS.find((a) => a.ml > stats.total);
     const prev = [...ACHIEVEMENTS].reverse().find((a) => a.ml <= stats.total);
-    const lo = prev?.ml || 0;
-    const pct = next ? ((stats.total - lo) / (next.ml - lo)) * 100 : 100;
-    root.querySelector('.cm-progress-fill').style.width = `${Math.max(0, Math.min(100, pct))}%`;
-    root.querySelector('.cm-progress-label').textContent = next
+    root.querySelector('.cm-ach').textContent = next
         ? `${prev ? prev[lang] + ' · ' : ''}${L.next}: ${next[lang]} (${fmtStr(next.ml, L)})`
         : prev?.[lang] || '';
 
@@ -423,7 +439,11 @@ function announce(ml, comment) {
     const s = settings();
     if (!root || !s.showPill || root.classList.contains('cm-open')) return;
     const L = strings(resolveLang(s.lang));
-    root.querySelector('.cm-toast-delta').textContent = `+${fmtStr(ml, L)}`;
+    const capacity = Number(s.jarSize) || DEFAULTS.jarSize;
+    const total = compute().total;
+    const filled = Math.floor(total / capacity);
+    const overflowed = filled > Math.floor((total - ml) / capacity);
+    root.querySelector('.cm-toast-delta').textContent = `+${fmtStr(ml, L)}${overflowed ? ` · ${L.jarFull(filled)}` : ''}`;
     const note = root.querySelector('.cm-toast-note');
     note.textContent = s.showComments ? comment || '' : '';
     note.hidden = !note.textContent;
@@ -481,6 +501,7 @@ function renderSettings() {
                 <h4>${L.sDisplay}</h4>
                 <label class="cm-switch"><span>${L.sEnabled}</span><input type="checkbox" data-k="enabled" ${s.enabled ? 'checked' : ''}></label>
                 <label class="cm-switch"><span>${L.sGlass}</span><input type="checkbox" data-k="liquidGlass" ${s.liquidGlass ? 'checked' : ''}></label>
+                <label class="cm-field"><span>${L.sJar}</span><select data-k="jarSize" data-num>${[500, 1000, 3000, 10000].map((v) => opt(v, fmtStr(v, L), Number(s.jarSize))).join('')}</select></label>
                 <label class="cm-switch"><span>${L.sPill}</span><input type="checkbox" data-k="showPill" ${s.showPill ? 'checked' : ''}></label>
                 <label class="cm-switch"><span>${L.sComments}</span><input type="checkbox" data-k="showComments" ${s.showComments ? 'checked' : ''}></label>
                 <label class="cm-field"><span>${L.sLang}</span><select data-k="lang">${opt('auto', L.auto, s.lang)}${opt('en', 'English', s.lang)}${opt('ru', 'Русский', s.lang)}</select></label>
@@ -521,7 +542,7 @@ function renderSettings() {
     panel.querySelectorAll('[data-k]').forEach((el) => {
         el.addEventListener('change', () => {
             const k = el.dataset.k;
-            s[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+            s[k] = el.type === 'checkbox' ? el.checked : el.dataset.num !== undefined ? Number(el.value) : el.value.trim();
             if (k === 'provider') {
                 const base = panel.querySelector('[data-k="baseUrl"]');
                 if (s.provider === 'anthropic' && /openrouter|openai/.test(s.baseUrl)) s.baseUrl = 'https://api.anthropic.com/v1';

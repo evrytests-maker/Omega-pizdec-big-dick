@@ -114,8 +114,28 @@ await send('*I sit down.*');
 check('innocent reply does not call the model', oocCalls().length === n0);
 check('total unchanged', Math.abs((await total()) - 1840) < 0.01);
 
-// 3. Russian knot message → second measurement.
-await send('*Смотрю на него.*');
+check('jar 1 is 61% full, shelf empty', await page.evaluate(() => /translateY\((\d+(\.\d+)?)px\)/.test(document.querySelector('.cm-jar-level').style.transform) && document.querySelector('.cm-jar-shelf').hidden));
+check('pill shows a mini jar instead of a drop', await page.locator('.cm-pill .cm-mini-jar').count() === 1);
+
+// 3. Russian knot message → second measurement, crosses 3 L → overflow into jar 2.
+await page.click('.cm-pill');
+await page.waitForTimeout(1300);
+await page.screenshot({ path: SP + '/jar-0-before.png', clip: { x: 900, y: 40, width: 380, height: 520 } });
+const nBefore = await page.evaluate(() => SillyTavern.getContext().chat.length);
+await page.fill('#send_textarea', '*Смотрю на него.*');
+await page.locator('#send_textarea').press('Enter');
+await page.waitForFunction((n) => SillyTavern.getContext().chat.length >= n + 2 && !SillyTavern.getContext().chat.at(-1).is_user, nBefore, { timeout: 30000 });
+await page.waitForFunction(() => document.querySelector('.cm-jar-level').style.transform.includes('20px'), null, { timeout: 15000 });
+check('jar fills up to the rim before overflowing', true);
+await page.waitForTimeout(800);
+await page.screenshot({ path: SP + '/jar-1-overflow.png', clip: { x: 900, y: 40, width: 380, height: 520 } });
+check('streams run down the walls', await page.evaluate(() => document.querySelector('.cm-jar-stage').classList.contains('cm-overflowing')));
+await page.waitForTimeout(2600);
+await page.screenshot({ path: SP + '/jar-2-after.png', clip: { x: 900, y: 40, width: 380, height: 520 } });
+const meta = await page.textContent('.cm-jar-meta');
+check('new jar holds the remainder (Jar 2 · 680 ml / 3 L)', /Jar 2 · 680 ml \/ 3 L/.test(meta), meta);
+check('full jar moved to the shelf', await page.locator('.cm-jar-shelf .cm-shelf-jar').count() === 1);
+await page.mouse.click(640, 400);
 check('Russian reply triggers and is measured', Math.abs((await total()) - 3680) < 0.01, String(await total()));
 
 // 4. Card view.
