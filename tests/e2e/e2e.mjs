@@ -230,6 +230,10 @@ check('leaderboard received this submission', !!me && Math.abs(me.ml - sentTotal
 const wire = await (await fetch('http://127.0.0.1:5200/__last_body')).text();
 check('submission is sealed: only v/epk/iv/ct on the wire, no nickname or volume in clear',
   JSON.stringify(Object.keys(JSON.parse(wire))) === '["v","epk","iv","ct"]' && !wire.includes('tester') && !wire.includes(String(Math.round(sentTotal))));
+const baseBoard = await (await fetch('http://127.0.0.1:5200/api/top?board=base')).json();
+const meBase = baseBoard.rows.find((r) => r.nick === 'tester');
+check('base board gets the realistic total, far below omega-pizdec', !!meBase && meBase.ml > 0 && meBase.ml < me.ml / 10, `base ${meBase?.ml} vs omega ${me?.ml}`);
+check('card shows the realistic base total', /Base · realistic\s*[\d.]+\s*ml/.test((await page.textContent('.cm-card')).replace(/\s+/g, ' ')));
 check('leaderboard rows expose only rank, nick and volume', Object.keys(me).every((k) => ['rank', 'nick', 'ml', 'me'].includes(k)));
 await page.mouse.click(640, 400);
 

@@ -13,7 +13,7 @@ const num = (v) => (typeof v === 'number' ? v : parseFloat(String(v ?? '').repla
 function parse(text) {
     const clean = String(text ?? '').replace(/```(?:json)?/gi, '');
     const candidates = clean.match(/\{[^{}]*\}/g) || [];
-    const raw = candidates.reverse().find((c) => /["']?(?:ml|happened)["']?\s*:/.test(c));
+    const raw = candidates.reverse().find((c) => /["']?(?:omega-pizdec|ml|happened)["']?\s*:/.test(c));
     if (!raw) return null;
     let j;
     try {
@@ -25,12 +25,17 @@ function parse(text) {
             return null;
         }
     }
-    const ml = num(j.ml);
-    const happened = (j.happened === true || j.happened === 'true') && Number.isFinite(ml) && ml > 0;
+    // "omega-pizdec" is the lore-scaled volume; older replies may still say "ml".
+    const omega = num(j['omega-pizdec'] ?? j.omega_pizdec ?? j.omega ?? j.ml);
+    let base = num(j.base);
+    const happened = (j.happened === true || j.happened === 'true') && Number.isFinite(omega) && omega > 0;
+    // A missing realistic figure falls back to a typical human volume rather than zero.
+    if (!Number.isFinite(base) || base <= 0) base = Math.min(omega, 5);
     return {
         happened,
         count: happened ? Math.max(1, parseInt(j.count, 10) || 1) : 0,
-        ml: happened ? Math.min(ml, 1e9) : 0,
+        ml: happened ? Math.min(omega, 1e9) : 0,
+        base: happened ? Math.min(base, omega, 1e9) : 0,
         omegaverse: j.omegaverse === true || j.omegaverse === 'true',
         comment: happened ? String(j.comment ?? '').slice(0, 160) : '',
     };

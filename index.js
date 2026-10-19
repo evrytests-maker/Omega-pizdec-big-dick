@@ -1,4 +1,4 @@
-import { triggers, looksOmegaverse, heuristicMl } from './src/detect.js';
+import { triggers, looksOmegaverse, heuristicMl, heuristicBase } from './src/detect.js';
 import { measure, ping, listProfiles } from './src/llm.js';
 import { buildMessages } from './src/prompt.js';
 import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS, QUIPS } from './src/i18n.js';
@@ -99,14 +99,18 @@ function cardText(ch) {
 function compute() {
     const c = ctx();
     const meta = chatMeta();
-    const res = { total: 0, episodes: 0, perChar: {}, last: null };
+    // Two scores per measurement: `ml` is omega-pizdec (lore-scaled), `base` is realistic.
+    const res = { total: 0, base: 0, episodes: 0, perChar: {}, last: null };
     if (!meta || !Array.isArray(c.chat)) return res;
     for (const msg of c.chat) {
         const e = meta.entries[hash(msg.mes)];
         if (!e || !(e.ml > 0)) continue;
         res.total += e.ml;
+        res.base += e.base || 0;
         res.episodes += 1;
-        res.perChar[e.char] = (res.perChar[e.char] || 0) + e.ml;
+        const pc = (res.perChar[e.char] ??= { omega: 0, base: 0 });
+        pc.omega += e.ml;
+        pc.base += e.base || 0;
         if (!res.last || (e.ts || 0) > (res.last.ts || 0)) res.last = e;
     }
     return res;
@@ -117,16 +121,18 @@ function syncCharTotals(stats) {
     const chatId = ctx().getCurrentChatId?.();
     if (!chatId) return;
     for (const rec of Object.values(s.chars)) delete rec.chats?.[chatId];
-    for (const [key, ml] of Object.entries(stats.perChar)) {
+    for (const [key, totals] of Object.entries(stats.perChar)) {
         const rec = (s.chars[key] ??= { name: key, chats: {} });
         rec.name = ctx().characters.find((x) => x.avatar === key)?.name || rec.name;
-        rec.chats[chatId] = ml;
+        rec.chats[chatId] = totals;
     }
     save();
 }
 
-const charTotal = (key) => Object.values(settings().chars[key]?.chats || {}).reduce((a, b) => a + b, 0);
-const grandTotal = () => Object.keys(settings().chars).reduce((a, k) => a + charTotal(k), 0);
+// Older versions stored a plain number per chat (omega-pizdec only).
+const chatValue = (v, kind) => (typeof v === 'number' ? (kind === 'omega' ? v : 0) : v?.[kind] || 0);
+const charTotal = (key, kind = 'omega') => Object.values(settings().chars[key]?.chats || {}).reduce((a, v) => a + chatValue(v, kind), 0);
+const grandTotal = (kind = 'omega') => Object.keys(settings().chars).reduce((a, k) => a + charTotal(k, kind), 0);
 
 function pruneEntries(meta) {
     const live = new Set(ctx().chat.map((m) => hash(m.mes)));
@@ -183,6 +189,7 @@ async function processIndex(i, { force = false } = {}) {
         const pool = QUIPS[lang];
         res = {
             happened: true,
+            base: heuristicBase(text),
             ml: heuristicMl(text, { omega: omegaHint }),
             comment: pool[Math.floor(Math.random() * pool.length)],
         };
@@ -192,11 +199,11 @@ async function processIndex(i, { force = false } = {}) {
     if (ctx().getCurrentChatId?.() !== chatId) return;
 
     chatMeta().entries[h] = res.happened
-        ? { ml: Math.round(res.ml * 10) / 10, note: res.comment, char: ch.key, ts: Date.now() }
-        : { ml: 0, char: ch.key };
+        ? { ml: Math.round(res.ml * 10) / 10, base: Math.round(res.base * 10) / 10, note: res.comment, char: ch.key, ts: Date.now() }
+        : { ml: 0, base: 0, char: ch.key };
     await ctx().saveMetadata();
     refresh();
-    if (res.happened && !force) announce(res.ml, res.comment);
+    if (res.happened && !force) announce(res.ml, res.comment, res.base);
 }
 
 async function recountChat() {
@@ -306,6 +313,7 @@ function buildPill() {
             </div>
             <div class="cm-ach"></div>
             <dl class="cm-rows">
+                <div><dt class="cm-l-base"></dt><dd class="cm-base"></dd></div>
                 <div><dt class="cm-l-allTime"></dt><dd class="cm-all"></dd></div>
                 <div><dt class="cm-l-episodes"></dt><dd class="cm-eps"></dd></div>
             </dl>
@@ -374,7 +382,7 @@ function refresh() {
     const stats = compute();
     syncCharTotals(stats);
 
-    for (const k of ['thisChat', 'allTime', 'episodes']) {
+    for (const k of ['thisChat', 'allTime', 'episodes', 'base']) {
         root.querySelectorAll(`.cm-l-${k}`).forEach((el) => (el.textContent = L[k]));
     }
     root.querySelector('.cm-recount').textContent = L.recount;
@@ -389,6 +397,7 @@ function refresh() {
     root.querySelector('.cm-l-allTime').textContent = `${L.allTime} · ${main.name}`;
     root.querySelector('.cm-all').textContent = fmtStr(charTotal(main.key), L);
     root.querySelector('.cm-eps').textContent = String(stats.episodes);
+    root.querySelector('.cm-base').textContent = fmtStr(stats.base, L);
 
     // Jar: animate only within one chat; switching chats snaps to the new level.
     const capacity = Number(s.jarSize) || DEFAULTS.jarSize;
@@ -425,7 +434,7 @@ function checkAchievements(total, lang) {
     ctx().saveMetadata();
 }
 
-function announce(ml, comment) {
+function announce(ml, comment, base = 0) {
     const s = settings();
     if (!root || !s.showPill || root.classList.contains('cm-open')) return;
     const L = strings(resolveLang(s.lang));
@@ -433,7 +442,7 @@ function announce(ml, comment) {
     const total = compute().total;
     const filled = Math.floor(total / capacity);
     const overflowed = filled > Math.floor((total - ml) / capacity);
-    root.querySelector('.cm-toast-delta').textContent = `+${fmtStr(ml, L)}${overflowed ? ` · ${L.jarFull(filled)}` : ''}`;
+    root.querySelector('.cm-toast-delta').textContent = `+${fmtStr(ml, L)}${overflowed ? ` · ${L.jarFull(filled)}` : ''} · ${L.baseShort} ${fmtStr(base, L)}`;
     const note = root.querySelector('.cm-toast-note');
     note.textContent = s.showComments ? comment || '' : '';
     note.hidden = !note.textContent;
@@ -457,10 +466,11 @@ async function submitLeaderboard() {
     const L = strings(resolveLang(s.lang));
     if (!s.leaderboardUrl) return toastr.warning(L.noBoard);
     const nick = (s.nickname || '').trim() || `anon-${userKey().slice(0, 4)}`;
-    const ml = Math.round(grandTotal() * 10) / 10;
-    if (!confirm(L.submitConfirm(nick, fmtStr(ml, L)))) return;
+    const omega = Math.round(grandTotal('omega') * 10) / 10;
+    const base = Math.round(grandTotal('base') * 10) / 10;
+    if (!confirm(L.submitConfirm(nick, fmtStr(omega, L), fmtStr(base, L)))) return;
     try {
-        const data = await submitSealed(s.leaderboardUrl, { nick, ml, localKey: userKey() });
+        const data = await submitSealed(s.leaderboardUrl, { nick, omega, base, localKey: userKey() });
         toastr.success(L.submitted(data.rank), L.board);
     } catch (e) {
         toastr.error(e.code === 'nick_taken' ? L.nickTaken : String(e.message || e), L.board);

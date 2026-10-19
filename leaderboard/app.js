@@ -5,6 +5,7 @@ const T = {
         title: 'Leaderboard',
         summary: (v, n) => `${v} spilled by ${n} ${n === 1 ? 'player' : 'players'}`,
         search: 'Search',
+        boardHint: { 'omega-pizdec': 'By the lore: omegaverse, knots, hentai physics', base: 'Realistic: plain human physiology' },
         empty: 'No one yet.',
         noMatch: 'No one by that name.',
         error: 'Couldn’t load the leaderboard.',
@@ -15,6 +16,7 @@ const T = {
         title: 'Лидерборд',
         summary: (v, n) => `${v} пролито, ${n} ${plural(n, 'игрок', 'игрока', 'игроков')}`,
         search: 'Поиск',
+        boardHint: { 'omega-pizdec': 'По лору: омегаверс, узлы, хентай-физика', base: 'Реалистично: обычная человеческая физиология' },
         empty: 'Пока никого.',
         noMatch: 'Никого с таким именем.',
         error: 'Не удалось загрузить лидерборд.',
@@ -37,6 +39,13 @@ const store = {
 
 let lang = store.get('cm.lang') || (/^(ru|uk|be)/i.test(navigator.language) ? 'ru' : 'en');
 let query = '';
+const BOARDS = ['omega-pizdec', 'base'];
+let board = (() => {
+    const fromUrl = new URL(location.href).searchParams.get('board');
+    if (BOARDS.includes(fromUrl)) return fromUrl;
+    const saved = store.get('cm.board');
+    return BOARDS.includes(saved) ? saved : 'omega-pizdec';
+})();
 let data = null;
 let loadedAt = 0;
 
@@ -75,6 +84,11 @@ function render() {
     document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t[el.dataset.t]; });
     $('.lang').textContent = t.lang;
     $('.search input').placeholder = t.search;
+    document.querySelectorAll('.seg [data-board]').forEach((b) => {
+        b.setAttribute('aria-selected', String(b.dataset.board === board));
+        b.title = t.boardHint[b.dataset.board];
+    });
+    $('.seg').dataset.active = board;
     tick();
     if (!data) return;
 
@@ -102,9 +116,11 @@ function tick() {
 async function load() {
     const me = store.get('cm.me');
     try {
-        const res = await fetch(`/api/top?limit=100${me ? `&me=${encodeURIComponent(me)}` : ''}`, { cache: 'no-store' });
+        const want = board;
+        const res = await fetch(`/api/top?board=${want}&limit=100${me ? `&me=${encodeURIComponent(me)}` : ''}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(String(res.status));
         const json = await res.json();
+        if (want !== board) return; // switched boards while this was loading
         data = { rows: json.rows || [], me: json.me, stats: json.stats || { players: 0, totalMl: 0 } };
         loadedAt = Date.now();
     } catch {
@@ -113,6 +129,17 @@ async function load() {
     }
     render();
 }
+
+document.querySelectorAll('.seg [data-board]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.board === board) return;
+    board = b.dataset.board;
+    store.set('cm.board', board);
+    const url = new URL(location.href);
+    url.searchParams.set('board', board);
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    render();
+    load();
+}));
 
 $('.lang').addEventListener('click', () => {
     lang = lang === 'ru' ? 'en' : 'ru';

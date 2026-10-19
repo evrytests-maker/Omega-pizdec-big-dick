@@ -1,5 +1,5 @@
 // Leaderboard client. A submission is sealed to the server's public key, so only the
-// leaderboard deployment can read it. It carries the volume, the nickname, a timestamp
+// leaderboard deployment can read it. It carries both volumes (omega-pizdec and base), the nickname, a timestamp
 // against replays, and `owner`: SHA-256 of the local key, which proves the nickname is
 // yours without the key itself ever leaving the browser.
 const { subtle } = crypto;
@@ -7,7 +7,7 @@ const ALG = { name: 'ECDH', namedCurve: 'P-256' };
 const enc = new TextEncoder();
 
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const base = (url) => String(url || '').trim().replace(/\/+$/, '');
+const origin = (url) => String(url || '').trim().replace(/\/+$/, '');
 
 export async function ownerHash(localKey) {
     const digest = await subtle.digest('SHA-256', enc.encode(localKey));
@@ -29,13 +29,13 @@ async function seal(serverJwk, payload) {
     return { v: 1, epk: { x, y }, iv: b64url(iv), ct: b64url(ct) };
 }
 
-export async function submit(url, { nick, ml, localKey }) {
-    const keyRes = await fetch(`${base(url)}/api/key`);
+export async function submit(url, { nick, omega, base, localKey }) {
+    const keyRes = await fetch(`${origin(url)}/api/key`);
     const keyJson = await keyRes.json().catch(() => ({}));
     if (!keyRes.ok || !keyJson.key) throw new Error(keyJson.error || `HTTP ${keyRes.status}`);
 
-    const envelope = await seal(keyJson.key, { nick, ml, owner: await ownerHash(localKey), ts: Date.now() });
-    const res = await fetch(`${base(url)}/api/submit`, {
+    const envelope = await seal(keyJson.key, { nick, omega, base, owner: await ownerHash(localKey), ts: Date.now() });
+    const res = await fetch(`${origin(url)}/api/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(envelope),
@@ -50,5 +50,5 @@ export async function submit(url, { nick, ml, localKey }) {
 }
 
 export async function boardUrl(url, localKey) {
-    return `${base(url)}/?me=${await ownerHash(localKey)}`;
+    return `${origin(url)}/?me=${await ownerHash(localKey)}`;
 }

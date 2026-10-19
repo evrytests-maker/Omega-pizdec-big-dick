@@ -28,7 +28,7 @@ node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (
 
 ### End-to-end in real SillyTavern
 
-`tests/e2e/` drives a real SillyTavern build with Playwright (48 checks: install, settings UI, regex → OOC call,
+`tests/e2e/` drives a real SillyTavern build with Playwright (50 checks: install, settings UI, regex → OOC call,
 omegaverse context, swipes/deletes, reload persistence, offline fallback, sealed leaderboard submit, Liquid Glass on/off, jar overflow).
 
 ```bash
@@ -71,7 +71,7 @@ No trigger, no request.
 | — | `<measurement_request>`: running total, regex omegaverse hint, reply language |
 
 **What it must return** — exactly one object:
-`{"happened": bool, "count": int, "ml": number, "omegaverse": bool, "comment": string}`. The reader tolerates fences, prose
+`{"happened": bool, "count": int, "base": number, "omega-pizdec": number, "omegaverse": bool, "comment": string}`: **base** is the realistic volume (human physiology whatever the lore), **omega-pizdec** the lore-scaled one (omegaverse, monsters, hentai physics). The extension keeps both totals; the leaderboard has a board for each. The reader tolerates fences, prose
 around the JSON, quoted numbers, units and comma decimals; if there is still no valid JSON it asks once more, then falls back
 to the offline estimate.
 
@@ -98,8 +98,8 @@ Deploy the site + API (`leaderboard/`) to Vercel:
 
 API:
 - `GET /api/key` → `{ v: 1, key: <public JWK> }`
-- `POST /api/submit` `{ v, epk, iv, ct }` → `{ rank }` (one request per 30 s; `409 nick_taken` if the nickname is someone else's)
-- `GET /api/top?limit=50&me=<fingerprint>` → `{ rows: [{ rank, nick, ml }], me, stats: { players, totalMl } }`
+- `POST /api/submit` `{ v, epk, iv, ct }` (sealed `{ nick, omega, base, owner, ts }`) → `{ rank, ranks: { 'omega-pizdec', base } }` (one request per 30 s; `409 nick_taken` if the nickname is someone else's)
+- `GET /api/top?board=omega-pizdec|base&limit=50&me=<fingerprint>` → `{ rows: [{ rank, nick, ml }], me, stats: { players, totalMl } }`
 - `/` — the public leaderboard page (plain static files, RU/EN, light/dark).
 
 Preview locally without Vercel: `node tests/e2e/fakeboard.mjs "$PWD/leaderboard"` → http://127.0.0.1:5200

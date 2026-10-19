@@ -82,7 +82,13 @@ export function looksOmegaverse(text) {
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
-/** Offline estimate used when no model is configured or the call failed. */
+/** Offline realistic ("base") estimate: plain human physiology, whatever the lore says. */
+export function heuristicBase(text) {
+    const rounds = 1 + Math.min(3, (clean(text).match(ROUNDS) || []).length);
+    return Math.round(rand(2, 6) * rounds * 10) / 10;
+}
+
+/** Offline omega-pizdec (lore-scaled) estimate used when no model is configured or the call failed. */
 export function heuristicMl(text, { omega = false } = {}) {
     const t = clean(text);
     const rounds = 1 + Math.min(3, (t.match(ROUNDS) || []).length);
