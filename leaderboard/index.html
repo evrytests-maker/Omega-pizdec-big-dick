@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cumometer Leaderboard</title>
+<style>
+:root {
+    --bg: #f5f5f7; --card: #fff; --fg: #1d1d1f; --fg2: rgba(60,60,67,.6);
+    --hair: rgba(0,0,0,.08); --accent: #0a84ff; --gold: #ff9f0a;
+    color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+    :root { --bg: #000; --card: #1c1c1e; --fg: #f5f5f7; --fg2: rgba(235,235,245,.6); --hair: rgba(255,255,255,.1); }
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; letter-spacing: -.01em;
+}
+main { max-width: 640px; margin: 0 auto; padding: 64px 16px 48px; }
+h1 { font: 700 40px/1.05 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; letter-spacing: -.03em; margin: 0; }
+.sub { color: var(--fg2); margin: 8px 0 32px; font-size: 17px; }
+.list { background: var(--card); border-radius: 18px; overflow: hidden; border: .5px solid var(--hair); }
+.row { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: .5px solid var(--hair); }
+.row:last-child { border-bottom: 0; }
+.row.me { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.rank { font-weight: 600; color: var(--fg2); font-variant-numeric: tabular-nums; }
+.row:nth-child(1) .rank { color: var(--gold); }
+.nick { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.char { color: var(--fg2); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vol { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.empty { padding: 40px 18px; text-align: center; color: var(--fg2); }
+footer { margin-top: 24px; color: var(--fg2); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+    <h1 id="title">Leaderboard</h1>
+    <p class="sub" id="sub">Who soaked the most roleplays.</p>
+    <div class="list" id="list"><div class="empty">…</div></div>
+    <footer id="foot">Data is sent only when a player presses Submit.</footer>
+</main>
+<script>
+const ru = /^(ru|uk|be)/i.test(navigator.language);
+const T = ru
+    ? { title: 'Лидерборд', sub: 'Кто залил больше всех ролок.', empty: 'Пока пусто.', foot: 'Данные уходят только по нажатию «Отправить».', ml: 'мл', l: 'л', err: 'Не удалось загрузить' }
+    : { title: 'Leaderboard', sub: 'Who soaked the most roleplays.', empty: 'Nothing yet.', foot: 'Data is sent only when a player presses Submit.', ml: 'ml', l: 'L', err: 'Failed to load' };
+document.documentElement.lang = ru ? 'ru' : 'en';
+for (const k of ['title', 'sub', 'foot']) document.getElementById(k).textContent = T[k];
+
+const fmt = (ml) => ml < 1000
+    ? `${ml.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${T.ml}`
+    : `${(ml / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${T.l}`;
+
+function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+}
+
+(async () => {
+    const list = document.getElementById('list');
+    try {
+        const me = new URLSearchParams(location.search).get('me');
+        const res = await fetch(`/api/top?limit=100${me ? `&me=${encodeURIComponent(me)}` : ''}`);
+        const { rows } = await res.json();
+        list.replaceChildren();
+        if (!rows?.length) return list.append(el('div', 'empty', T.empty));
+        for (const r of rows) {
+            const row = el('div', `row${r.me ? ' me' : ''}`);
+            const who = el('div');
+            who.append(el('div', 'nick', r.nick));
+            if (r.topChar) who.append(el('div', 'char', `${r.topChar} · ${fmt(r.topCharMl)}`));
+            row.append(el('div', 'rank', String(r.rank)), who, el('div', 'vol', fmt(r.ml)));
+            list.append(row);
+        }
+    } catch {
+        list.replaceChildren(el('div', 'empty', T.err));
+    }
+})();
+</script>
+</body>
+</html>

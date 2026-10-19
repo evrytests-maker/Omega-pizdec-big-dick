@@ -1,0 +1,6 @@
+{
+    "name": "cumometer-leaderboard",
+    "private": true,
+    "type": "module",
+    "engines": { "node": ">=18" }
+}
