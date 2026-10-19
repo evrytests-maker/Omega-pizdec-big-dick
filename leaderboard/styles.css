@@ -76,9 +76,6 @@ h1 {
     letter-spacing: -0.02em;
 }
 
-.you { margin: 6px 0 0; color: var(--accent); font-size: 15px; }
-.you[hidden] { display: none; }
-
 .search {
     -webkit-appearance: none;
     appearance: none;
@@ -119,18 +116,6 @@ h1 {
 .top-1 .rank { font-size: 17px; }
 
 .me .nick, .me .rank { color: var(--accent); }
-.nick em {
-    margin-left: 6px;
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    color: var(--accent);
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 500;
-    vertical-align: 2px;
-}
-
 .note { margin: 32px 0 0; color: var(--dim); text-align: center; }
 .note:empty { display: none; }
 

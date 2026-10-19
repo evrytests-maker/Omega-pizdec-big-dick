@@ -4,8 +4,6 @@ const T = {
     en: {
         title: 'Leaderboard',
         summary: (v, n) => `${v} spilled by ${n} ${n === 1 ? 'player' : 'players'}`,
-        you: (r) => `You’re #${r}`,
-        youTag: 'You',
         search: 'Search',
         empty: 'No one yet.',
         noMatch: 'No one by that name.',
@@ -17,8 +15,6 @@ const T = {
     ru: {
         title: 'Лидерборд',
         summary: (v, n) => `${v} пролито, ${n} ${plural(n, 'игрок', 'игрока', 'игроков')}`,
-        you: (r) => `Вы на ${r} месте`,
-        youTag: 'Вы',
         search: 'Поиск',
         empty: 'Пока никого.',
         noMatch: 'Никого с таким именем.',
@@ -78,15 +74,13 @@ function render() {
     if (!data) return;
 
     $('.summary').textContent = t.summary(vol(data.stats.totalMl), data.stats.players);
-    $('.you').hidden = !data.me;
-    if (data.me) $('.you').textContent = t.you(data.me.rank);
 
     const q = query.trim().toLowerCase();
     const rows = q ? data.rows.filter((r) => r.nick.toLowerCase().includes(q)) : data.rows;
     $('.list').innerHTML = rows.map((r) => `
         <li class="${r.rank <= 3 ? `top top-${r.rank}` : ''}${r.me ? ' me' : ''}">
             <span class="rank">${r.rank}</span>
-            <span class="nick">${esc(r.nick)}${r.me ? ` <em>${t.youTag}</em>` : ''}</span>
+            <span class="nick">${esc(r.nick)}</span>
             <span class="vol">${vol(r.ml)}</span>
         </li>`).join('');
     $('.note').textContent = !data.rows.length ? t.empty : !rows.length ? t.noMatch : '';
