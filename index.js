@@ -13,7 +13,7 @@ const DEFAULTS = {
     lang: 'auto',
     theme: 'auto',
     mode: 'hybrid',
-    absurdity: 5,
+    liquidGlass: true,
     scanUser: false,
     provider: 'openai',
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -177,7 +177,7 @@ async function processIndex(i, { force = false } = {}) {
         try {
             res = await measure(
                 { provider: s.provider, baseUrl: s.baseUrl, model: s.model, apiKey: apiKey() },
-                { charName: ch.name, lang, absurdity: s.absurdity, card, omegaHint, history, message: text, totalMl: compute().total },
+                { charName: ch.name, lang, card, omegaHint, history, message: text, totalMl: compute().total },
             );
         } catch (e) {
             console.warn('[Cumometer] OOC model failed:', e);
@@ -191,7 +191,7 @@ async function processIndex(i, { force = false } = {}) {
         const pool = QUIPS[lang];
         res = {
             happened: true,
-            ml: heuristicMl(text, { omega: omegaHint, absurdity: s.absurdity }),
+            ml: heuristicMl(text, { omega: omegaHint }),
             comment: pool[Math.floor(Math.random() * pool.length)],
         };
     }
@@ -261,14 +261,38 @@ let toastTimer = 0;
 
 function applyTheme() {
     if (!root) return;
-    const t = settings().theme;
-    root.dataset.theme = t === 'light' || t === 'dark' ? t : '';
+    const s = settings();
+    root.dataset.theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : '';
+    root.classList.toggle('cm-liquid', Boolean(s.liquidGlass));
+}
+
+// Liquid Glass refraction: a displacement map bends whatever sits behind the surface.
+// Chromium applies SVG filters inside backdrop-filter; elsewhere CSS falls back to frosted glass.
+const LIQUID_FILTER = `
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="cm-liquid-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="7" result="noise"/>
+        <feGaussianBlur in="noise" stdDeviation="2.5" result="soft"/>
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="38" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+</svg>`;
+
+function trackSpecular(el) {
+    el.addEventListener('pointermove', (e) => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--cm-mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+        el.style.setProperty('--cm-my', `${((e.clientY - r.top) / r.height) * 100}%`);
+    });
+    el.addEventListener('pointerleave', () => {
+        el.style.removeProperty('--cm-mx');
+        el.style.removeProperty('--cm-my');
+    });
 }
 
 function buildPill() {
     root = document.createElement('div');
     root.id = 'cm-root';
-    root.innerHTML = `
+    root.innerHTML = `${LIQUID_FILTER}
         <button class="cm-pill" type="button" aria-expanded="false">
             <span class="cm-drop">${DROP_SVG}</span>
             <span class="cm-pill-value">0</span><span class="cm-pill-unit"></span>
@@ -298,6 +322,8 @@ function buildPill() {
 
     const pill = root.querySelector('.cm-pill');
     const card = root.querySelector('.cm-card');
+    trackSpecular(pill);
+    trackSpecular(card);
     pill.addEventListener('click', (e) => {
         e.stopPropagation();
         const open = card.hidden;
@@ -454,6 +480,7 @@ function renderSettings() {
             <section>
                 <h4>${L.sDisplay}</h4>
                 <label class="cm-switch"><span>${L.sEnabled}</span><input type="checkbox" data-k="enabled" ${s.enabled ? 'checked' : ''}></label>
+                <label class="cm-switch"><span>${L.sGlass}</span><input type="checkbox" data-k="liquidGlass" ${s.liquidGlass ? 'checked' : ''}></label>
                 <label class="cm-switch"><span>${L.sPill}</span><input type="checkbox" data-k="showPill" ${s.showPill ? 'checked' : ''}></label>
                 <label class="cm-switch"><span>${L.sComments}</span><input type="checkbox" data-k="showComments" ${s.showComments ? 'checked' : ''}></label>
                 <label class="cm-field"><span>${L.sLang}</span><select data-k="lang">${opt('auto', L.auto, s.lang)}${opt('en', 'English', s.lang)}${opt('ru', 'Русский', s.lang)}</select></label>
@@ -462,7 +489,6 @@ function renderSettings() {
             <section>
                 <h4>${L.sMeasure}</h4>
                 <label class="cm-field"><span>${L.sMode}</span><select data-k="mode">${opt('hybrid', L.sModeHybrid, s.mode)}${opt('regex', L.sModeRegex, s.mode)}</select></label>
-                <label class="cm-field"><span>${L.sAbsurdity} <b class="cm-abs-val">${s.absurdity}</b></span><input type="range" min="0" max="10" step="1" data-k="absurdity" data-num value="${s.absurdity}"></label>
                 <label class="cm-switch"><span>${L.sScanUser}</span><input type="checkbox" data-k="scanUser" ${s.scanUser ? 'checked' : ''}></label>
             </section>
             <section>
@@ -493,10 +519,9 @@ function renderSettings() {
     const panel = host.querySelector('.cm-settings');
 
     panel.querySelectorAll('[data-k]').forEach((el) => {
-        el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+        el.addEventListener('change', () => {
             const k = el.dataset.k;
-            s[k] = el.type === 'checkbox' ? el.checked : el.dataset.num !== undefined ? Number(el.value) : el.value.trim();
-            if (k === 'absurdity') panel.querySelector('.cm-abs-val').textContent = el.value;
+            s[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
             if (k === 'provider') {
                 const base = panel.querySelector('[data-k="baseUrl"]');
                 if (s.provider === 'anthropic' && /openrouter|openai/.test(s.baseUrl)) s.baseUrl = 'https://api.anthropic.com/v1';
@@ -534,13 +559,31 @@ function renderSettings() {
     buildPill();
     renderSettings();
 
-    eventSource.on(event_types.MESSAGE_RECEIVED, (id) => enqueue(() => processIndex(Number(id))));
-    eventSource.on(event_types.MESSAGE_EDITED, (id) => enqueue(() => processIndex(Number(id))));
+    // Refresh even when the text was measured before: a repeated reply still counts again.
+    const onMessage = (id) => enqueue(async () => {
+        await processIndex(Number(id));
+        refresh();
+    });
+    eventSource.on(event_types.MESSAGE_RECEIVED, onMessage);
+    eventSource.on(event_types.MESSAGE_EDITED, onMessage);
     for (const ev of [event_types.MESSAGE_SWIPED, event_types.MESSAGE_DELETED, event_types.CHAT_CHANGED]) {
         eventSource.on(ev, () => enqueue(async () => {
             shownTotal = ev === event_types.CHAT_CHANGED ? 0 : shownTotal;
             refresh();
         }));
     }
+    // Deleted chats and characters must stop counting toward all-time totals.
+    const forgetChat = (chatId) => {
+        for (const rec of Object.values(settings().chars)) delete rec.chats?.[chatId];
+        save();
+        refresh();
+    };
+    eventSource.on(event_types.CHAT_DELETED, forgetChat);
+    eventSource.on(event_types.GROUP_CHAT_DELETED, forgetChat);
+    eventSource.on(event_types.CHARACTER_DELETED, (data) => {
+        const avatar = data?.character?.avatar;
+        if (avatar) delete settings().chars[avatar];
+        save();
+    });
     refresh();
 })();

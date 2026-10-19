@@ -10,7 +10,7 @@ A SillyTavern extension that measures, with a straight face, how many litres a c
 2. **OOC model.** On a match, a separate small model receives the character card, the last few messages and the running total. It decides whether it actually happened and estimates the volume. It also writes a dry one-line OOC remark.
    - Human baseline is 2–6 ml.
    - The model adapts to the lore. In **omegaverse** (detected from the card and the scene), alphas in rut and knotting produce absurd volumes.
-   - The **Absurdity** slider (0–10) controls how far it may exaggerate.
+   - The prompt is tuned slightly absurd: exaggeration is allowed only when the text hints at excess.
 3. **Offline fallback.** With no model configured, or if the call fails, a heuristic estimate is used.
 4. Results are stored per chat in chat metadata, keyed by message text. Swipes, edits and deletions are handled automatically.
 
@@ -24,6 +24,19 @@ explicit positive, negative and near-miss cases in `tests/trigger-contracts.json
 ```bash
 npm test                                        # node:test, no dependencies
 node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (run `npm ci` there first)
+```
+
+### End-to-end in real SillyTavern
+
+`tests/e2e/` drives a real SillyTavern build with Playwright (30 checks: install, settings UI, regex → OOC call,
+omegaverse context, swipes/deletes, reload persistence, offline fallback, leaderboard submit, Liquid Glass on/off).
+
+```bash
+node tests/e2e/mockllm.mjs /tmp/llm.log &                 # OpenAI-compatible mock (RP + OOC), :5100
+node tests/e2e/fakeboard.mjs "$PWD/leaderboard" &          # real Vercel handlers + in-memory Upstash, :5200
+# SillyTavern on :8000 with this repo copied to data/default-user/extensions/Cumometer,
+# Chat Completion source = Custom, URL http://127.0.0.1:5100/v1
+node tests/e2e/e2e.mjs /tmp                                 # expects /tmp/llm.log
 ```
 
 ## Install / Установка
@@ -60,3 +73,8 @@ API:
 - `POST /api/submit` `{ userKey, nickname, ml, topChar, topCharMl }` → `{ rank }` (one request per 30 s per key)
 - `GET /api/top?limit=50&me=<userKey>` → `{ rows, me }`
 - `/` is the public leaderboard page.
+
+## Appearance
+
+**Liquid Glass** (on by default): refraction of the backdrop through an SVG displacement filter (Chromium), specular rim
+and a highlight that follows the pointer. Safari/Firefox fall back to frosted glass. Turn it off for the classic frosted look.

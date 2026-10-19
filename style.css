@@ -311,3 +311,118 @@
 .cm-settings small { display: block; opacity: 0.6; margin: 2px 0 6px; }
 .cm-settings .cm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cm-settings .cm-test-out { font-size: 0.9em; opacity: 0.8; word-break: break-word; }
+
+/* ── Liquid Glass ──────────────────────────────────────────────
+   Layers, bottom to top:
+   ::before  refraction (SVG displacement of the backdrop, Chromium) + light blur
+   element   thin tint so text stays legible on any wallpaper
+   ::after   specular rim and a highlight that follows the pointer
+   content   lifted above both pseudo-layers                         */
+
+#cm-root.cm-liquid {
+    --cm-tint: rgba(255, 255, 255, 0.22);
+    --cm-tint-strong: rgba(255, 255, 255, 0.66);
+    --cm-rim-hi: rgba(255, 255, 255, 0.85);
+    --cm-rim-lo: rgba(255, 255, 255, 0.28);
+    --cm-glow: rgba(255, 255, 255, 0.55);
+    --cm-shadow: 0 10px 30px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+    #cm-root.cm-liquid:not([data-theme="light"]) {
+        --cm-tint: rgba(40, 40, 46, 0.32);
+        --cm-tint-strong: rgba(30, 30, 34, 0.55);
+        --cm-rim-hi: rgba(255, 255, 255, 0.45);
+        --cm-rim-lo: rgba(255, 255, 255, 0.1);
+        --cm-glow: rgba(255, 255, 255, 0.22);
+        --cm-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+}
+
+#cm-root.cm-liquid[data-theme="dark"] {
+    --cm-tint: rgba(40, 40, 46, 0.32);
+    --cm-tint-strong: rgba(30, 30, 34, 0.55);
+    --cm-rim-hi: rgba(255, 255, 255, 0.45);
+    --cm-rim-lo: rgba(255, 255, 255, 0.1);
+    --cm-glow: rgba(255, 255, 255, 0.22);
+    --cm-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+#cm-root.cm-liquid .cm-pill,
+#cm-root.cm-liquid .cm-toast,
+#cm-root.cm-liquid .cm-card {
+    position: relative;
+    isolation: isolate;
+    background: var(--cm-tint);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 0;
+    box-shadow: var(--cm-shadow);
+}
+
+#cm-root.cm-liquid .cm-toast { position: absolute; }
+
+#cm-root.cm-liquid .cm-pill::before,
+#cm-root.cm-liquid .cm-toast::before,
+#cm-root.cm-liquid .cm-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    -webkit-backdrop-filter: blur(5px) saturate(190%) brightness(1.06);
+    backdrop-filter: url(#cm-liquid-refract) blur(5px) saturate(190%) brightness(1.06);
+    pointer-events: none;
+}
+
+@supports not (backdrop-filter: url(#cm-liquid-refract)) {
+    #cm-root.cm-liquid .cm-pill::before,
+    #cm-root.cm-liquid .cm-toast::before,
+    #cm-root.cm-liquid .cm-card::before {
+        backdrop-filter: blur(10px) saturate(190%) brightness(1.06);
+    }
+}
+
+#cm-root.cm-liquid .cm-pill::after,
+#cm-root.cm-liquid .cm-toast::after,
+#cm-root.cm-liquid .cm-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+        inset 1.5px 1.5px 0.5px -0.5px var(--cm-rim-hi),
+        inset -1px -1px 0.5px -0.5px var(--cm-rim-lo),
+        inset 0 0 14px rgba(255, 255, 255, 0.08);
+    background:
+        radial-gradient(120% 90% at var(--cm-mx, 22%) var(--cm-my, 0%), var(--cm-glow), transparent 45%),
+        linear-gradient(160deg, rgba(255, 255, 255, 0.16), transparent 38%);
+    mix-blend-mode: soft-light;
+    transition: background-position 0.2s;
+}
+
+/* Larger surfaces carry text: thicker tint keeps it legible over any backdrop. */
+#cm-root.cm-liquid .cm-card,
+#cm-root.cm-liquid .cm-toast { background: var(--cm-tint-strong); }
+
+#cm-root.cm-liquid .cm-pill > *,
+#cm-root.cm-liquid .cm-toast > *,
+#cm-root.cm-liquid .cm-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+#cm-root.cm-liquid .cm-pill { transition: transform 0.45s var(--cm-ease), box-shadow 0.45s var(--cm-ease); }
+#cm-root.cm-liquid .cm-pill:hover { transform: scale(1.06); }
+#cm-root.cm-liquid .cm-pill:active { transform: scale(0.94); }
+
+#cm-root.cm-liquid .cm-btn {
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 1px 1px 0 -0.5px var(--cm-rim-hi), inset -1px -1px 0 -0.5px var(--cm-rim-lo);
+}
+
+#cm-root.cm-liquid .cm-btn-primary { background: var(--cm-accent); }
+#cm-root.cm-liquid .cm-hero-value,
+#cm-root.cm-liquid .cm-pill-value { text-shadow: 0 1px 12px rgba(0, 0, 0, 0.06); }

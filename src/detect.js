@@ -83,7 +83,7 @@ export function looksOmegaverse(text) {
 const rand = (a, b) => a + Math.random() * (b - a);
 
 /** Offline estimate used when no model is configured or the call failed. */
-export function heuristicMl(text, { omega = false, absurdity = 5 } = {}) {
+export function heuristicMl(text, { omega = false } = {}) {
     const t = clean(text);
     const rounds = 1 + Math.min(3, (t.match(ROUNDS) || []).length);
     let intensity = 1;
@@ -95,6 +95,6 @@ export function heuristicMl(text, { omega = false, absurdity = 5 } = {}) {
         ml *= rand(40, 250);
         if (word('knot|узл|узел').test(t)) ml *= 1.5;
     }
-    ml *= Math.pow(intensity, 0.5 + absurdity / 10);
+    ml *= intensity;
     return Math.round(ml * 10) / 10;
 }
