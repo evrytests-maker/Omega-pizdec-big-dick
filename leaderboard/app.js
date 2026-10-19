@@ -55,6 +55,13 @@ let loadedAt = 0;
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+function volParts(ml) {
+    const t = T[lang];
+    if (ml < 1000) return [ml.toLocaleString(lang, { maximumFractionDigits: ml < 10 ? 1 : 0 }), t.ml];
+    const l = ml / 1000;
+    return [l.toLocaleString(lang, { maximumFractionDigits: l < 100 ? 2 : l < 1000 ? 1 : 0 }), t.l];
+}
+
 function vol(ml) {
     const t = T[lang];
     if (ml < 1000) return `${ml.toLocaleString(lang, { maximumFractionDigits: ml < 10 ? 1 : 0 })} ${t.ml}`;
@@ -67,7 +74,7 @@ function render() {
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t[el.dataset.t]; });
     $('.lang').textContent = t.lang;
-    $('.search').placeholder = t.search;
+    $('.search input').placeholder = t.search;
     tick();
     if (!data) return;
 
@@ -75,12 +82,16 @@ function render() {
 
     const q = query.trim().toLowerCase();
     const rows = q ? data.rows.filter((r) => r.nick.toLowerCase().includes(q)) : data.rows;
-    $('.list').innerHTML = rows.map((r) => `
-        <li class="${r.rank <= 3 ? `top top-${r.rank}` : ''}${r.me ? ' me' : ''}">
+    $('.list').innerHTML = rows.map((r, i) => {
+        const [n, u] = volParts(r.ml);
+        return `
+        <li class="${r.rank <= 3 ? `top top-${r.rank}` : ''}${r.me ? ' me' : ''}" style="--i:${Math.min(i, 12)}">
             <span class="rank">${r.rank}</span>
             <span class="nick">${esc(r.nick)}</span>
-            <span class="vol">${vol(r.ml)}</span>
-        </li>`).join('');
+            <span class="vol"><b>${n}</b> ${u}</span>
+        </li>`;
+    }).join('');
+    $('.list').hidden = !rows.length;
     $('.note').textContent = !data.rows.length ? t.empty : !rows.length ? t.noMatch : '';
 }
 
@@ -108,7 +119,7 @@ $('.lang').addEventListener('click', () => {
     store.set('cm.lang', lang);
     render();
 });
-$('.search').addEventListener('input', (e) => {
+$('.search input').addEventListener('input', (e) => {
     query = e.target.value;
     render();
 });
