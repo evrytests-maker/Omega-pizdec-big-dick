@@ -63,16 +63,25 @@ The API key is kept in the browser's `localStorage`, **not** in SillyTavern sett
 
 On first run the extension generates a random local key (UUID). Nothing is sent until you press **Submit**. Each submission sends only your nickname, your total, and your top character with its volume. The server stores just a SHA-256 hash of the key.
 
-Deploy the server (`leaderboard/`) to Vercel:
+Deploy the site + API (`leaderboard/`) to Vercel:
 
-1. Import the repo into Vercel and set **Root Directory** = `leaderboard`.
-2. Storage → Marketplace → **Upstash Redis** → connect to the project (it adds `KV_REST_API_URL` / `KV_REST_API_TOKEN`).
-3. Redeploy, then paste the project URL into Settings → Cumometer → Leaderboard → Server URL.
+1. Push this repo to GitHub, then in Vercel: **Add New → Project → Import** the repo.
+2. **Root Directory** = `leaderboard`. Framework preset: **Other**. No build command, no output directory.
+3. **Storage → Marketplace → Upstash Redis → Create → Connect to project.** It adds `KV_REST_API_URL` / `KV_REST_API_TOKEN`
+   (`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` also work).
+4. **Redeploy** so the functions see the variables.
+5. Paste the project URL (e.g. `https://cumometer.vercel.app`) into SillyTavern → Cumometer → Leaderboard → Server URL.
+
+The site (`index.html`, `styles.css`, `app.js`, `jar.js`) is plain static files: a podium with jars, players/characters
+views, search, live stats and auto-refresh every 30 s, RU/EN, light/dark. The extension's **Open** button passes your key
+as `?me=` so your row is highlighted; the page keeps it in `localStorage` and removes it from the address bar.
 
 API:
 - `POST /api/submit` `{ userKey, nickname, ml, topChar, topCharMl }` → `{ rank }` (one request per 30 s per key)
-- `GET /api/top?limit=50&me=<userKey>` → `{ rows, me }`
-- `/` is the public leaderboard page.
+- `GET /api/top?limit=50&me=<userKey>` → `{ rows, me, stats: { players, totalMl } }`
+
+Preview locally without Vercel: `node tests/e2e/fakeboard.mjs "$PWD/leaderboard"` → http://127.0.0.1:5200
+(real handlers, in-memory Redis).
 
 ## Appearance
 

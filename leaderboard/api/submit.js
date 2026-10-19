@@ -29,10 +29,13 @@ export default async function handler(req, res) {
         const ok = await redis('SET', `rl:${id}`, '1', 'NX', 'EX', '30');
         if (ok !== 'OK') return res.status(429).json({ error: 'Too fast, try again in 30 s' });
 
+        // Keep a running grand total so the site can show it without scanning every player.
+        const prev = Number(await redis('HGET', `u:${id}`, 'ml')) || 0;
         const [, , rank] = await pipeline([
             ['ZADD', 'lb', String(ml), id],
             ['HSET', `u:${id}`, 'nick', nickname, 'ml', String(ml), 'top', topChar, 'topMl', String(topCharMl), 'ts', String(Date.now())],
             ['ZREVRANK', 'lb', id],
+            ['INCRBYFLOAT', 'stats:total', String(ml - prev)],
         ]);
         return res.status(200).json({ ok: true, rank: (rank ?? 0) + 1 });
     } catch (e) {

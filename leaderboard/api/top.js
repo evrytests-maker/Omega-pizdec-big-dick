@@ -26,6 +26,9 @@ export default async function handler(req, res) {
             };
         });
 
+        const [players, total] = await pipeline([['ZCARD', 'lb'], ['GET', 'stats:total']]);
+        const stats = { players: Number(players) || 0, totalMl: Math.max(0, Number(total) || 0) };
+
         let me = null;
         if (meId) {
             const r = await redis('ZREVRANK', 'lb', meId);
@@ -33,7 +36,7 @@ export default async function handler(req, res) {
         }
 
         res.setHeader('Cache-Control', meId ? 'no-store' : 's-maxage=30, stale-while-revalidate=60');
-        return res.status(200).json({ rows, me });
+        return res.status(200).json({ rows, me, stats });
     } catch (e) {
         return res.status(500).json({ error: String(e.message || e) });
     }

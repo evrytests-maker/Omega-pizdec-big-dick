@@ -2,85 +2,107 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cumometer Leaderboard</title>
-<style>
-:root {
-    --bg: #f5f5f7; --card: #fff; --fg: #1d1d1f; --fg2: rgba(60,60,67,.6);
-    --hair: rgba(0,0,0,.08); --accent: #0a84ff; --gold: #ff9f0a;
-    color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-    :root { --bg: #000; --card: #1c1c1e; --fg: #f5f5f7; --fg2: rgba(235,235,245,.6); --hair: rgba(255,255,255,.1); }
-}
-* { box-sizing: border-box; }
-body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased; letter-spacing: -.01em;
-}
-main { max-width: 640px; margin: 0 auto; padding: 64px 16px 48px; }
-h1 { font: 700 40px/1.05 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; letter-spacing: -.03em; margin: 0; }
-.sub { color: var(--fg2); margin: 8px 0 32px; font-size: 17px; }
-.list { background: var(--card); border-radius: 18px; overflow: hidden; border: .5px solid var(--hair); }
-.row { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: .5px solid var(--hair); }
-.row:last-child { border-bottom: 0; }
-.row.me { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.rank { font-weight: 600; color: var(--fg2); font-variant-numeric: tabular-nums; }
-.row:nth-child(1) .rank { color: var(--gold); }
-.nick { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.char { color: var(--fg2); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vol { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.empty { padding: 40px 18px; text-align: center; color: var(--fg2); }
-footer { margin-top: 24px; color: var(--fg2); font-size: 13px; text-align: center; }
-</style>
+<meta name="description" content="Who filled the most jars. The public leaderboard of the Cumometer SillyTavern extension.">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Cumometer Leaderboard">
+<meta property="og:description" content="Who filled the most jars.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css">
+<script type="module" src="/app.js"></script>
 </head>
 <body>
-<main>
-    <h1 id="title">Leaderboard</h1>
-    <p class="sub" id="sub">Who soaked the most roleplays.</p>
-    <div class="list" id="list"><div class="empty">…</div></div>
-    <footer id="foot">Data is sent only when a player presses Submit.</footer>
+
+<header class="nav">
+    <div class="nav-inner">
+        <a class="brand" href="#top" aria-label="Cumometer">
+            <img src="/favicon.svg" alt="" width="22" height="22">
+            <span>Cumometer</span>
+        </a>
+        <nav class="nav-links">
+            <a href="#board" data-t="navBoard"></a>
+            <a href="#how" data-t="navHow"></a>
+        </nav>
+        <div class="nav-actions">
+            <button class="lang" type="button" aria-label="Language"></button>
+            <a class="btn btn-small" data-t="getIt" href="https://github.com/evrytests-maker/Omega-pizdec-big-dick" target="_blank" rel="noopener"></a>
+        </div>
+    </div>
+</header>
+
+<main id="top">
+    <section class="hero">
+        <div class="hero-text">
+            <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span data-t="live"></span></p>
+            <h1 data-t="headline"></h1>
+            <p class="lede" data-t="lede"></p>
+            <p class="you" hidden></p>
+        </div>
+        <div class="hero-jar" aria-hidden="true"></div>
+        <dl class="stats">
+            <div class="stat"><dt data-t="statTotal"></dt><dd><span class="stat-num" data-stat="total">0</span><span class="stat-unit" data-stat="totalUnit"></span></dd></div>
+            <div class="stat"><dt data-t="statJars"></dt><dd><span class="stat-num" data-stat="jars">0</span></dd></div>
+            <div class="stat"><dt data-t="statPlayers"></dt><dd><span class="stat-num" data-stat="players">0</span></dd></div>
+        </dl>
+    </section>
+
+    <section class="section" id="board">
+        <div class="section-head">
+            <h2 data-t="boardTitle"></h2>
+            <div class="controls">
+                <div class="segmented" role="tablist">
+                    <button type="button" role="tab" data-view="players" aria-selected="true" data-t="tabPlayers"></button>
+                    <button type="button" role="tab" data-view="chars" aria-selected="false" data-t="tabChars"></button>
+                </div>
+                <label class="search">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+                    <input type="search" data-t-placeholder="search" autocomplete="off">
+                </label>
+            </div>
+        </div>
+
+        <div class="podium" aria-live="polite"></div>
+
+        <div class="table" role="table">
+            <div class="row row-head" role="row">
+                <span role="columnheader">#</span>
+                <span role="columnheader" data-t="colName"></span>
+                <span role="columnheader" class="col-jars" data-t="colJars"></span>
+                <span role="columnheader" class="col-vol" data-t="colVolume"></span>
+            </div>
+            <div class="rows"></div>
+        </div>
+        <p class="updated" aria-live="polite"></p>
+    </section>
+
+    <section class="section" id="how">
+        <h2 data-t="howTitle"></h2>
+        <div class="cards">
+            <article class="card">
+                <span class="card-num">1</span>
+                <h3 data-t="how1t"></h3>
+                <p data-t="how1"></p>
+            </article>
+            <article class="card">
+                <span class="card-num">2</span>
+                <h3 data-t="how2t"></h3>
+                <p data-t="how2"></p>
+            </article>
+            <article class="card">
+                <span class="card-num">3</span>
+                <h3 data-t="how3t"></h3>
+                <p data-t="how3"></p>
+            </article>
+        </div>
+        <p class="privacy" data-t="privacy"></p>
+    </section>
 </main>
-<script>
-const ru = /^(ru|uk|be)/i.test(navigator.language);
-const T = ru
-    ? { title: 'Лидерборд', sub: 'Кто залил больше всех ролок.', empty: 'Пока пусто.', foot: 'Данные уходят только по нажатию «Отправить».', ml: 'мл', l: 'л', err: 'Не удалось загрузить' }
-    : { title: 'Leaderboard', sub: 'Who soaked the most roleplays.', empty: 'Nothing yet.', foot: 'Data is sent only when a player presses Submit.', ml: 'ml', l: 'L', err: 'Failed to load' };
-document.documentElement.lang = ru ? 'ru' : 'en';
-for (const k of ['title', 'sub', 'foot']) document.getElementById(k).textContent = T[k];
 
-const fmt = (ml) => ml < 1000
-    ? `${ml.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${T.ml}`
-    : `${(ml / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${T.l}`;
+<footer class="footer">
+    <p data-t="footer"></p>
+</footer>
 
-function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-}
-
-(async () => {
-    const list = document.getElementById('list');
-    try {
-        const me = new URLSearchParams(location.search).get('me');
-        const res = await fetch(`/api/top?limit=100${me ? `&me=${encodeURIComponent(me)}` : ''}`);
-        const { rows } = await res.json();
-        list.replaceChildren();
-        if (!rows?.length) return list.append(el('div', 'empty', T.empty));
-        for (const r of rows) {
-            const row = el('div', `row${r.me ? ' me' : ''}`);
-            const who = el('div');
-            who.append(el('div', 'nick', r.nick));
-            if (r.topChar) who.append(el('div', 'char', `${r.topChar} · ${fmt(r.topCharMl)}`));
-            row.append(el('div', 'rank', String(r.rank)), who, el('div', 'vol', fmt(r.ml)));
-            list.append(row);
-        }
-    } catch {
-        list.replaceChildren(el('div', 'empty', T.err));
-    }
-})();
-</script>
 </body>
 </html>
