@@ -16,11 +16,19 @@ http.createServer((req, res) => {
     const j = body ? JSON.parse(body) : {};
     // ST may reshape roles (prompt post-processing), so look at the whole conversation.
     const isOoc = /You are the Cumometer/.test(JSON.stringify(j.messages || j.prompt || ''));
-    fs.appendFileSync(LOG, JSON.stringify({ url: req.url, ooc: isOoc, auth: req.headers.authorization || req.headers['x-api-key'] || null, stream: !!j.stream, model: j.model, contract: /## How to report/.test(JSON.stringify(j.messages || j.prompt || '')), user: isOoc ? j.messages?.at(-1)?.content : undefined }) + '\n');
+    fs.appendFileSync(LOG, JSON.stringify({ url: req.url, ooc: isOoc, auth: req.headers.authorization || req.headers['x-api-key'] || null, stream: !!j.stream, model: j.model, contract: /## Output/.test(JSON.stringify(j.messages || j.prompt || '')), all: isOoc ? JSON.stringify(j.messages) : undefined, roles: isOoc ? (j.messages || []).map((m) => m.role) : undefined }) + '\n');
     if (req.url.endsWith('/models')) { res.writeHead(200, { ...cors, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ object: 'list', data: [{ id: 'mock-rp', object: 'model' }, { id: 'mock-ooc', object: 'model' }] })); }
     let content;
     if (isOoc) {
-      const omega = /knot|узел/i.test(j.messages.at(-1).content);
+      const measured = j.messages.at(-2)?.content || '';
+      const omega = /knot|узел/i.test(measured);
+      const all = JSON.stringify(j.messages);
+      if (/once more, groaning/.test(all)) {
+        // First answer is chatter; only the corrective retry gets proper JSON.
+        content = /not a valid answer/.test(all)
+          ? '{"happened": true, "count": 1, "ml": 7, "omegaverse": false, "comment": "Retry accepted."}'
+          : 'Sure thing! He definitely finished there, I would say a moderate amount.';
+      } else
       content = omega
         ? '{"happened": true, "count": 1, "ml": 1840, "omegaverse": true, "comment": "Knot-sealed. The lab has upgraded from beakers to buckets."}'
         : '{"happened": false, "count": 0, "ml": 0, "omegaverse": false, "comment": ""}';
@@ -29,6 +37,7 @@ http.createServer((req, res) => {
       content = /ping/.test(lastUser) ? 'ok'
         : /Again/.test(lastUser) ? 'He came inside her again, flooding her with his seed.'
         : /Repeat/.test(lastUser) ? RP[0]
+        : /Garble/.test(lastUser) ? 'He came inside her once more, groaning.'
         : /closer/.test(lastUser) ? RP[0]
         : /Смотрю/.test(lastUser) ? RP[2]
         : RP[1];

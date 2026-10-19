@@ -1,5 +1,6 @@
 import { triggers, looksOmegaverse, heuristicMl } from './src/detect.js';
 import { measure, ping, listProfiles } from './src/llm.js';
+import { buildMessages } from './src/prompt.js';
 import { strings, resolveLang, COMPARISONS, ACHIEVEMENTS, QUIPS } from './src/i18n.js';
 import { Jar, JAR_SVG, MINI_JAR_SVG, split } from './src/jar.js';
 import { submit as submitSealed, boardUrl } from './src/board.js';
@@ -167,7 +168,9 @@ async function processIndex(i, { force = false } = {}) {
     let res = null;
     if (s.profileId) {
         try {
-            res = await measure(s.profileId, { charName: ch.name, lang, card, omegaHint, history, message: text, totalMl: compute().total });
+            const chid = ch.data ? c.characters.indexOf(ch.data) : undefined;
+            const messages = await buildMessages({ index: i, chid: chid >= 0 ? chid : undefined, charName: ch.name, totalMl: compute().total, omegaHint, lang });
+            res = await measure(s.profileId, messages);
         } catch (e) {
             console.warn('[Cumometer] OOC model failed:', e);
             if (!apiWarned) {

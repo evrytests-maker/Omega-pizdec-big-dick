@@ -49,6 +49,16 @@ await page.evaluate(async () => {
   await c.selectCharacterById(id);
 });
 await page.waitForFunction(() => SillyTavern.getContext().chat?.length >= 1 && SillyTavern.getContext().getCurrentChatId());
+// A global lorebook: "knot" fires from the chat, "zebra" never appears anywhere.
+await page.evaluate(async () => {
+  const c = SillyTavern.getContext();
+  const entry = (uid, key, content) => ({ uid, key: [key], keysecondary: [], comment: key, content, constant: false, selective: true, selectiveLogic: 0, order: 100, position: 0, disable: false, probability: 100, useProbability: true, depth: 4, excludeRecursion: false, preventRecursion: false });
+  const data = { entries: { 0: entry(0, 'knot', 'LORE-KNOT: in this world a knot locks for an hour.'), 1: entry(1, 'zebra', 'LORE-ZEBRA: must never be sent.') } };
+  const r = await fetch('/api/worldinfo/edit', { method: 'POST', headers: c.getRequestHeaders(), body: JSON.stringify({ name: 'e2e-lore', data }) });
+  if (!r.ok) throw new Error('worldinfo ' + r.status);
+  await c.updateWorldInfoList();
+  await c.executeSlashCommandsWithOptions('/world silent=true e2e-lore');
+});
 await page.waitForTimeout(800);
 check('pill visible once a chat is open', await page.locator('#cm-root').isVisible());
 
@@ -115,7 +125,10 @@ const last = calls.at(-1);
 check('model call uses the profile model and the key from ST secrets', last?.auth === 'Bearer sk-test-123' && last?.model === 'mock-ooc', JSON.stringify({ auth: last?.auth, model: last?.model }));
 check('browser never talks to the model directly (requests go through ST)', browserToModel.length === 0, browserToModel.join(', '));
 check('model receives the Cumometer system prompt (measurement contract)', last?.contract === true);
-check('OOC prompt includes the character card (omegaverse context)', /omegaverse/i.test(last?.user || '') && /<regex_omegaverse_hint>true/.test(last?.user || ''));
+check('prompt carries the character card and persona', /Ren is an alpha in an omegaverse world/.test(last?.all || '') && /<user_persona|<character name=\\"Ren\\"/.test(last?.all || ''));
+check('prompt carries the triggered lorebook entry, not the untriggered one', /LORE-KNOT/.test(last?.all || '') && !/LORE-ZEBRA/.test(last?.all || ''), (last?.all || '').match(/LORE-[A-Z]+/g)?.join(','));
+check('roleplay preset is not sent (no main prompt from the preset)', !/fictional chat between/i.test(last?.all || ''));
+check('measurement request goes last, measured message right before it', last?.roles?.at(-1) === 'user' && /measurement_request/.test(JSON.parse(last?.all || '[]').at(-1)?.content || '') && /knot swelling/.test(JSON.parse(last?.all || '[]').at(-2)?.content || ''));
 check('total = 1840 ml', Math.abs((await total()) - 1840) < 0.01, String(await total()));
 await page.waitForTimeout(600);
 check('pill shows 1.84 L', /1\.84\s*L/.test(await pillText()), await pillText());
@@ -156,6 +169,12 @@ check('new jar holds the remainder (Jar 2 · 680 ml / 3 L)', /Jar 2 · 680 ml \/
 check('full jar moved to the shelf', await page.locator('.cm-jar-shelf .cm-shelf-jar').count() === 1);
 await page.mouse.click(640, 400);
 check('Russian reply triggers and is measured', Math.abs((await total()) - 3680) < 0.01, String(await total()));
+{
+  const ru = oocCalls().at(-1);
+  const msgs = JSON.parse(ru?.all || '[]');
+  const chatMsgs = msgs.slice(2, -1);
+  check('only the last 4 chat messages are sent', chatMsgs.length === 4 && /I sit down/.test(chatMsgs[0].content) && !/I step closer|belly rounded/.test(ru.all), chatMsgs.map((m) => m.content.slice(0, 18)).join(' | '));
+}
 
 // 4. Card view.
 await page.click('.cm-pill');
@@ -191,6 +210,13 @@ await page.evaluate(() => { SillyTavern.getContext().extensionSettings.cumometer
 const beforeRepeat = await total();
 await send('*Repeat.*');
 check('identical repeated reply counts again', (await total()) > beforeRepeat, `${beforeRepeat} → ${await total()}`);
+
+// 7c. Model answers with chatter instead of JSON → one corrective retry, then it counts.
+const beforeGarble = await total();
+const callsBeforeGarble = oocCalls().length;
+await send('*Garble.*');
+const garbleToast = await page.textContent('.cm-toast-delta');
+check('non-JSON answer triggers one corrective retry that is accepted', oocCalls().length - callsBeforeGarble === 2 && /^\+7 ml/.test(garbleToast), `toast "${garbleToast}", calls +${oocCalls().length - callsBeforeGarble}`);
 
 // 8. Leaderboard submit (explicit click + confirm).
 const sentTotal = await total();

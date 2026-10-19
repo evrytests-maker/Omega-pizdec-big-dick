@@ -28,7 +28,7 @@ node tests/ace-check.mjs /path/to/ace-skill     # cross-check with the ACE CLI (
 
 ### End-to-end in real SillyTavern
 
-`tests/e2e/` drives a real SillyTavern build with Playwright (43 checks: install, settings UI, regex → OOC call,
+`tests/e2e/` drives a real SillyTavern build with Playwright (48 checks: install, settings UI, regex → OOC call,
 omegaverse context, swipes/deletes, reload persistence, offline fallback, sealed leaderboard submit, Liquid Glass on/off, jar overflow).
 
 ```bash
@@ -58,9 +58,22 @@ issues, and every source SillyTavern supports works (OpenRouter, OpenAI, Claude,
 text-completion backends). Your roleplay preset is not applied to these requests. Without a profile the counter uses
 regex triggers and a rough offline estimate.
 
-The model gets a fixed ~590-token system prompt (`src/llm.js`): what counts as an ejaculation, how to size it (human
-baseline, lore and omegaverse scaling, intensity cues, consistency with the running total), a safety rule, and a strict
-one-object JSON reply format.
+**When the model is called.** Only after a regex trigger fires on a new message, i.e. the moment of the climax itself.
+No trigger, no request.
+
+**What it receives** (`src/prompt.js`) is the roleplay prompt with two swaps:
+
+| Main roleplay generation | Measurement request |
+|---|---|
+| Preset: main prompt, jailbreak, preset system prompts | **Cumometer rules** (~1k tokens): procedure, what counts, how to size the volume, safety, strict JSON format with examples |
+| Character card, persona, active lorebook entries | **The same**: `getCharacterCardFields()` + `getWorldInfoPrompt()` with the same scan, in dry-run mode (timed effects untouched) |
+| Whole chat history | **Last 4 messages**, the measured one last |
+| — | `<measurement_request>`: running total, regex omegaverse hint, reply language |
+
+**What it must return** — exactly one object:
+`{"happened": bool, "count": int, "ml": number, "omegaverse": bool, "comment": string}`. The reader tolerates fences, prose
+around the JSON, quoted numbers, units and comma decimals; if there is still no valid JSON it asks once more, then falls back
+to the offline estimate.
 
 ## Leaderboard / Лидерборд
 
